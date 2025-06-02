@@ -1,0 +1,92 @@
+@import 'react-toastify/dist/ReactToastify.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    margin: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #f1f5f9;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .game-canvas {
+    @apply w-full h-screen bg-gradient-to-b from-sky-400 to-green-400 relative overflow-hidden;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  
+  .inventory-slot {
+    @apply w-12 h-12 border-2 border-surface-600 bg-surface-800 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:border-primary-400 hover:shadow-game;
+  }
+  
+  .inventory-slot.active {
+    @apply border-primary-500 bg-primary-900 shadow-game;
+  }
+  
+  .block-preview {
+    @apply w-8 h-8 rounded border border-surface-500 flex items-center justify-center text-xs font-bold shadow-inner;
+  }
+  
+  .control-button {
+    @apply px-4 py-2 bg-surface-700 border border-surface-600 rounded-lg text-sm font-medium hover:bg-surface-600 transition-all duration-200 active:scale-95;
+  }
+  
+  .hud-panel {
+    @apply bg-surface-900 border border-surface-700 rounded-xl p-4 shadow-card backdrop-blur-sm;
+    background: rgba(30, 41, 59, 0.9);
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  
+  .glass-morphism {
+    backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Custom scrollbar for game UI */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Disable text selection for game UI */
+.game-ui {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
