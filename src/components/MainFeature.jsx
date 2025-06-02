@@ -45,13 +45,16 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
     selectedSlot: 'grass',
     gameMode: 'creative'
   })
-  
-  const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
+const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
   const [isBuilding, setIsBuilding] = useState(true)
   const [hoveredBlock, setHoveredBlock] = useState(null)
   const [performance, setPerformance] = useState({ fps: 60, chunks: 1 })
   const [isPlaying, setIsPlaying] = useState(false)
-  
+  const [statistics, setStatistics] = useState({
+    totalBlocksPlaced: 0,
+    totalBlocksMined: 0,
+    uniqueBlockTypes: new Set()
+  })
   // Refs
   const gameRef = useRef(null)
   const animationRef = useRef(null)
@@ -81,14 +84,20 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
           const newWorld = { ...prev }
           const blockType = newWorld[blockKey]
           delete newWorld[blockKey]
-          
-          // Add to inventory
+// Add to inventory
           setPlayer(prevPlayer => ({
             ...prevPlayer,
             inventory: {
               ...prevPlayer.inventory,
               [blockType]: (prevPlayer.inventory[blockType] || 0) + 1
             }
+          }))
+          
+          // Update statistics
+          setStatistics(prev => ({
+            ...prev,
+            totalBlocksMined: prev.totalBlocksMined + 1,
+            uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, blockType])
           }))
           
           toast.success(`Mined ${BLOCK_TYPES[blockType]?.name || blockType}!`)
@@ -107,8 +116,15 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
           ...prev,
           inventory: {
             ...prev.inventory,
-            [prev.selectedSlot]: prev.inventory[prev.selectedSlot] - 1
+[prev.selectedSlot]: prev.inventory[prev.selectedSlot] - 1
           }
+        }))
+        
+        // Update statistics
+        setStatistics(prev => ({
+          ...prev,
+          totalBlocksPlaced: prev.totalBlocksPlaced + 1,
+          uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, player.selectedSlot])
         }))
         
         toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
@@ -215,11 +231,15 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
         grass: 50,
         dirt: 30,
         stone: 25,
-        wood: 20,
-        water: 15,
+water: 15,
         sand: 40
       }
     }))
+    setStatistics({
+      totalBlocksPlaced: 0,
+      totalBlocksMined: 0,
+      uniqueBlockTypes: new Set()
+    })
     toast.info('World reset!')
   }
   
@@ -353,9 +373,16 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
           </div>
         </div>
         
-        {/* Controls */}
+{/* Controls */}
         <div className="hud-panel">
           <div className="flex gap-2">
+            <button
+              onClick={() => window.location.href = '/statistics'}
+              className="control-button hover:bg-primary-600"
+              title="View Statistics"
+            >
+              <ApperIcon name="BarChart3" size={16} />
+            </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
               className="control-button"
@@ -374,6 +401,24 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
             >
               <ApperIcon name="RotateCcw" size={16} />
             </button>
+          </div>
+        </div>
+        
+        {/* Live Statistics */}
+        <div className="hud-panel">
+          <div className="text-sm space-y-1">
+            <div className="flex items-center gap-2">
+              <ApperIcon name="Blocks" size={16} className="text-yellow-400" />
+              <span>Placed: {statistics.totalBlocksPlaced}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ApperIcon name="Pickaxe" size={16} className="text-orange-400" />
+              <span>Mined: {statistics.totalBlocksMined}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ApperIcon name="Palette" size={16} className="text-purple-400" />
+              <span>Types: {statistics.uniqueBlockTypes.size}</span>
+            </div>
           </div>
         </div>
       </div>
