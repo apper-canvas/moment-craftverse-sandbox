@@ -60,10 +60,10 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
   const animationRef = useRef(null)
   const lastFrameTime = useRef(0)
   
-  // Performance monitoring
+// Performance monitoring
   useEffect(() => {
     const updateFPS = () => {
-      const now = performance.now()
+      const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()
       const fps = Math.round(1000 / (now - lastFrameTime.current))
       lastFrameTime.current = now
       setPerformance(prev => ({ ...prev, fps: fps > 0 ? fps : 60 }))
