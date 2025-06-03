@@ -50,6 +50,7 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
   const [hoveredBlock, setHoveredBlock] = useState(null)
   const [performance, setPerformance] = useState({ fps: 60, chunks: 1 })
   const [isPlaying, setIsPlaying] = useState(false)
+  const [showMiniMap, setShowMiniMap] = useState(false)
   const [statistics, setStatistics] = useState({
     totalBlocksPlaced: 0,
     totalBlocksMined: 0,
@@ -214,6 +215,36 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
     })
     
     return blocks
+}
+  
+  // Render mini-map
+  const renderMiniMap = () => {
+    const mapCells = []
+    for (let x = 0; x < WORLD_SIZE.width; x++) {
+      for (let z = 0; z < WORLD_SIZE.depth; z++) {
+        let topBlock = null
+        // Find the topmost block at this x,z position
+        for (let y = WORLD_SIZE.height - 1; y >= 0; y--) {
+          const key = `${x},${y},${z}`
+          if (world[key]) {
+            topBlock = world[key]
+            break
+          }
+        }
+        
+        mapCells.push(
+          <div
+            key={`${x}-${z}`}
+            className="w-2 h-2"
+            style={{
+              backgroundColor: topBlock ? BLOCK_TYPES[topBlock]?.color : 'transparent',
+              opacity: topBlock ? 0.8 : 0.1
+            }}
+          />
+        )
+      }
+    }
+    return mapCells
   }
   
   // Start game
@@ -221,17 +252,17 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
     setIsPlaying(true)
     toast.success('Welcome to CraftVerse! Start building your world!')
   }
-  
   // Reset world
   const resetWorld = () => {
     setWorld({})
     setPlayer(prev => ({
       ...prev,
       inventory: {
-        grass: 50,
+grass: 50,
         dirt: 30,
         stone: 25,
-water: 15,
+        wood: 20,
+        water: 15,
         sand: 40
       }
     }))
@@ -372,10 +403,16 @@ water: 15,
             </div>
           </div>
         </div>
-        
 {/* Controls */}
         <div className="hud-panel">
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowMiniMap(!showMiniMap)}
+              className="control-button hover:bg-primary-600"
+              title="Toggle Mini-Map"
+            >
+              <ApperIcon name="Map" size={16} />
+            </button>
             <button
               onClick={() => window.location.href = '/statistics'}
               className="control-button hover:bg-primary-600"
@@ -419,9 +456,72 @@ water: 15,
               <ApperIcon name="Palette" size={16} className="text-purple-400" />
               <span>Types: {statistics.uniqueBlockTypes.size}</span>
             </div>
-          </div>
+</div>
         </div>
       </div>
+      
+      {/* Mini-Map Overlay */}
+      <AnimatePresence>
+        {showMiniMap && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, x: 50 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: 50 }}
+            transition={{ duration: 0.3 }}
+            className="absolute top-24 right-4 z-50"
+          >
+            <div className="hud-panel p-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-surface-300 flex items-center gap-1">
+                  <ApperIcon name="Map" size={14} />
+                  Mini-Map
+                </h3>
+                <button
+                  onClick={() => setShowMiniMap(false)}
+                  className="text-surface-400 hover:text-surface-200 transition-colors"
+                >
+                  <ApperIcon name="X" size={12} />
+                </button>
+              </div>
+              
+              <div className="relative">
+                {/* Map Grid */}
+                <div 
+                  className="grid grid-cols-20 gap-0 border-2 border-surface-600 rounded"
+                  style={{ width: '160px', height: '160px' }}
+                >
+                  {renderMiniMap()}
+                </div>
+                
+                {/* Viewport indicator */}
+                <div 
+                  className="absolute border-2 border-white rounded pointer-events-none"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    left: '60px',
+                    top: '60px',
+                    opacity: 0.5
+                  }}
+                />
+                
+                {/* Compass */}
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-surface-800 rounded-full border border-surface-600 flex items-center justify-center">
+                  <span className="text-xs font-bold text-primary-400">N</span>
+                </div>
+              </div>
+              
+              {/* Map Legend */}
+              <div className="mt-2 text-xs text-surface-400">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-full" />
+                  <span>You</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Inventory Bar - Bottom */}
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50">
