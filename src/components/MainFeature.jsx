@@ -4,12 +4,35 @@ import { toast } from 'react-toastify'
 import ApperIcon from './ApperIcon'
 
 const BLOCK_TYPES = {
-  grass: { name: 'Grass', color: '#4ADE80', icon: 'Square' },
-  dirt: { name: 'Dirt', color: '#92400E', icon: 'Square' },
-  stone: { name: 'Stone', color: '#6B7280', icon: 'Square' },
-  wood: { name: 'Wood', color: '#A16207', icon: 'Square' },
-  water: { name: 'Water', color: '#3B82F6', icon: 'Waves' },
-  sand: { name: 'Sand', color: '#FCD34D', icon: 'Square' }
+  grass: { name: 'Grass', color: '#4ADE80', icon: 'Square', texture: null },
+  dirt: { name: 'Dirt', color: '#92400E', icon: 'Square', texture: null },
+  stone: { name: 'Stone', color: '#6B7280', icon: 'Square', texture: null },
+  wood: { name: 'Wood', color: '#A16207', icon: 'Square', texture: null },
+  water: { name: 'Water', color: '#3B82F6', icon: 'Waves', texture: null },
+  sand: { name: 'Sand', color: '#FCD34D', icon: 'Square', texture: null }
+}
+
+const PRESET_TEXTURES = {
+  brick: {
+    name: 'Brick',
+    pattern: 'repeating-linear-gradient(0deg, #B91C1C 0px, #B91C1C 4px, #7F1D1D 4px, #7F1D1D 8px)',
+    category: 'building'
+  },
+  cobblestone: {
+    name: 'Cobblestone', 
+    pattern: 'radial-gradient(circle at 25% 25%, #6B7280 0%, #4B5563 50%, #374151 100%)',
+    category: 'building'
+  },
+  mossy: {
+    name: 'Mossy',
+    pattern: 'repeating-conic-gradient(from 0deg at 50% 50%, #22C55E 0deg, #16A34A 90deg, #15803D 180deg)',
+    category: 'nature'
+  },
+  marble: {
+    name: 'Marble',
+    pattern: 'linear-gradient(45deg, #F3F4F6, #E5E7EB, #D1D5DB, #F3F4F6)',
+    category: 'luxury'
+  }
 }
 
 const WORLD_SIZE = { width: 20, height: 15, depth: 20 }
@@ -44,8 +67,21 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
     },
     selectedSlot: 'grass',
     gameMode: 'creative'
+})
+  
+  // Texture system state
+  const [textureMode, setTextureMode] = useState(false)
+  const [showTextureDesigner, setShowTextureDesigner] = useState(false)
+  const [showTextureLibrary, setShowTextureLibrary] = useState(false)
+  const [selectedTexture, setSelectedTexture] = useState(null)
+  const [customTextures, setCustomTextures] = useState({})
+  const [currentTexture, setCurrentTexture] = useState({
+    name: '',
+    pixels: Array(16).fill().map(() => Array(16).fill('#4ADE80')),
+    size: 16
   })
-const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
+  
+  const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
   const [isBuilding, setIsBuilding] = useState(true)
   const [hoveredBlock, setHoveredBlock] = useState(null)
   const [performance, setPerformance] = useState({ fps: 60, chunks: 1 })
@@ -115,9 +151,9 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
         
         setPlayer(prev => ({
           ...prev,
-          inventory: {
+inventory: {
             ...prev.inventory,
-[prev.selectedSlot]: prev.inventory[prev.selectedSlot] - 1
+            [prev.selectedSlot]: prev.inventory[prev.selectedSlot] - 1
           }
         }))
         
@@ -133,8 +169,67 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
         toast.warning(`No ${BLOCK_TYPES[player.selectedSlot]?.name} blocks left!`)
       }
     }
-  }, [world, player.selectedSlot, player.inventory, isBuilding])
+}, [world, player.selectedSlot, player.inventory, isBuilding])
   
+  // Texture management functions
+  const saveCustomTexture = useCallback(() => {
+    if (!currentTexture.name.trim()) {
+      toast.warning('Please enter a texture name!')
+      return
+    }
+    
+    const texturePattern = createPatternFromPixels(currentTexture.pixels)
+    setCustomTextures(prev => ({
+      ...prev,
+      [currentTexture.name]: {
+        name: currentTexture.name,
+        pattern: texturePattern,
+        pixels: currentTexture.pixels,
+        category: 'custom'
+      }
+    }))
+    
+    toast.success(`Texture "${currentTexture.name}" saved!`)
+    setShowTextureDesigner(false)
+  }, [currentTexture])
+  
+  const loadTexture = useCallback((textureName) => {
+    const texture = customTextures[textureName] || PRESET_TEXTURES[textureName]
+    if (texture) {
+      setSelectedTexture(texture)
+      setTextureMode(true)
+      toast.success(`Selected ${texture.name} texture!`)
+    }
+  }, [customTextures])
+  
+  const createPatternFromPixels = (pixels) => {
+    const size = pixels.length
+    let pattern = `repeating-linear-gradient(0deg, `
+    
+    for (let i = 0; i < size; i++) {
+      const color = pixels[i][0] // Use first pixel of row for simplicity
+      pattern += `${color} ${i * (100 / size)}%, ${color} ${(i + 1) * (100 / size)}%`
+      if (i < size - 1) pattern += ', '
+    }
+    
+    pattern += ')'
+    return pattern
+  }
+  
+  const applyTextureToBlock = useCallback((blockType, texture) => {
+    // Update block type with texture
+    BLOCK_TYPES[blockType].texture = texture
+    toast.success(`Applied ${texture.name} texture to ${BLOCK_TYPES[blockType].name}!`)
+  }, [])
+  
+  const deleteCustomTexture = useCallback((textureName) => {
+    setCustomTextures(prev => {
+      const newTextures = { ...prev }
+      delete newTextures[textureName]
+      return newTextures
+    })
+    toast.success(`Deleted texture "${textureName}"!`)
+  }, [])
   // Render 3D world in isometric view
   const renderWorld = () => {
     const blocks = []
@@ -192,14 +287,15 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
               zIndex: -1
             }}
           />
+/>
           
           {/* Main block */}
           <div 
             className={`w-8 h-8 rounded border-2 flex items-center justify-center text-white font-bold text-xs transition-all duration-200 ${
-              isHovered ? 'border-white shadow-lg scale-110' : 'border-gray-600'
             }`}
             style={{ 
-              backgroundColor: block.color,
+              backgroundColor: block.texture ? 'transparent' : block.color,
+              background: block.texture ? block.texture.pattern : block.color,
               boxShadow: isHovered ? '0 0 15px rgba(255,255,255,0.5)' : `inset 0 0 0 1px rgba(255,255,255,0.2)`
             }}
           >
@@ -216,6 +312,287 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
     
     return blocks
 }
+  
+  // Texture Designer Component
+  const renderTextureDesigner = () => {
+    const [selectedColor, setSelectedColor] = useState('#4ADE80')
+    const [activeTool, setActiveTool] = useState('brush')
+    
+    const drawPixel = (rowIndex, colIndex) => {
+      if (activeTool === 'brush') {
+        setCurrentTexture(prev => {
+          const newPixels = [...prev.pixels]
+          newPixels[rowIndex] = [...newPixels[rowIndex]]
+          newPixels[rowIndex][colIndex] = selectedColor
+          return { ...prev, pixels: newPixels }
+        })
+      } else if (activeTool === 'fill') {
+        floodFill(rowIndex, colIndex, selectedColor)
+      } else if (activeTool === 'eyedropper') {
+        setSelectedColor(currentTexture.pixels[rowIndex][colIndex])
+        setActiveTool('brush')
+      }
+    }
+    
+    const floodFill = (startRow, startCol, newColor) => {
+      const originalColor = currentTexture.pixels[startRow][startCol]
+      if (originalColor === newColor) return
+      
+      const pixels = currentTexture.pixels.map(row => [...row])
+      const stack = [[startRow, startCol]]
+      
+      while (stack.length > 0) {
+        const [row, col] = stack.pop()
+        if (row < 0 || row >= 16 || col < 0 || col >= 16) continue
+        if (pixels[row][col] !== originalColor) continue
+        
+        pixels[row][col] = newColor
+        stack.push([row + 1, col], [row - 1, col], [row, col + 1], [row, col - 1])
+      }
+      
+      setCurrentTexture(prev => ({ ...prev, pixels }))
+    }
+    
+    const clearCanvas = () => {
+      setCurrentTexture(prev => ({
+        ...prev,
+        pixels: Array(16).fill().map(() => Array(16).fill('#4ADE80'))
+      }))
+    }
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <ApperIcon name="Palette" size={24} className="text-primary-400" />
+              Texture Designer
+            </h2>
+            <button
+              onClick={() => setShowTextureDesigner(false)}
+              className="control-button hover:bg-red-600"
+            >
+              <ApperIcon name="X" size={16} />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Canvas */}
+            <div className="lg:col-span-2">
+              <div className="bg-surface-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-white">Canvas (16x16)</h3>
+                <div className="inline-block border-2 border-surface-600 rounded bg-white p-2">
+                  <div className="grid grid-cols-16 gap-0" style={{ width: '320px', height: '320px' }}>
+                    {currentTexture.pixels.map((row, rowIndex) =>
+                      row.map((color, colIndex) => (
+                        <div
+                          key={`${rowIndex}-${colIndex}`}
+                          className="w-5 h-5 border border-gray-300 cursor-pointer hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          onClick={() => drawPixel(rowIndex, colIndex)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Tools */}
+            <div className="space-y-4">
+              {/* Tool Selection */}
+              <div className="bg-surface-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-white">Tools</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setActiveTool('brush')}
+                    className={`control-button ${activeTool === 'brush' ? 'bg-primary-600' : ''}`}
+                  >
+                    <ApperIcon name="Paintbrush" size={16} />
+                  </button>
+                  <button
+                    onClick={() => setActiveTool('fill')}
+                    className={`control-button ${activeTool === 'fill' ? 'bg-primary-600' : ''}`}
+                  >
+                    <ApperIcon name="PaintBucket" size={16} />
+                  </button>
+                  <button
+                    onClick={() => setActiveTool('eyedropper')}
+                    className={`control-button ${activeTool === 'eyedropper' ? 'bg-primary-600' : ''}`}
+                  >
+                    <ApperIcon name="Eyedropper" size={16} />
+                  </button>
+                  <button
+                    onClick={clearCanvas}
+                    className="control-button hover:bg-red-600"
+                  >
+                    <ApperIcon name="Eraser" size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Color Picker */}
+              <div className="bg-surface-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-white">Color</h3>
+                <input
+                  type="color"
+                  value={selectedColor}
+                  onChange={(e) => setSelectedColor(e.target.value)}
+                  className="w-full h-12 rounded border border-surface-600"
+                />
+                <div className="mt-2 text-sm text-surface-300">
+                  Selected: {selectedColor}
+                </div>
+              </div>
+              
+              {/* Preview */}
+              <div className="bg-surface-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-white">Preview</h3>
+                <div className="w-16 h-16 rounded border border-surface-600 mx-auto"
+                     style={{ background: createPatternFromPixels(currentTexture.pixels) }}>
+                </div>
+              </div>
+              
+              {/* Save */}
+              <div className="bg-surface-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-white">Save Texture</h3>
+                <input
+                  type="text"
+                  placeholder="Texture name..."
+                  value={currentTexture.name}
+                  onChange={(e) => setCurrentTexture(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 bg-surface-700 border border-surface-600 rounded text-white mb-3"
+                />
+                <button
+                  onClick={saveCustomTexture}
+                  className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white rounded font-medium"
+                >
+                  <ApperIcon name="Save" size={16} className="inline mr-2" />
+                  Save Texture
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+  
+  // Texture Library Component
+  const renderTextureLibrary = () => {
+    const allTextures = { ...PRESET_TEXTURES, ...customTextures }
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: 300 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 300 }}
+        className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <ApperIcon name="Images" size={20} className="text-primary-400" />
+              Texture Library
+            </h2>
+            <button
+              onClick={() => setShowTextureLibrary(false)}
+              className="control-button hover:bg-red-600"
+            >
+              <ApperIcon name="X" size={16} />
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Preset Textures */}
+            <div>
+              <h3 className="text-sm font-semibold text-surface-300 mb-2">Preset Textures</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(PRESET_TEXTURES).map(([key, texture]) => (
+                  <div
+                    key={key}
+                    className="bg-surface-800 rounded-lg p-2 cursor-pointer hover:bg-surface-700 transition-colors"
+                    onClick={() => loadTexture(key)}
+                  >
+                    <div
+                      className="w-full h-12 rounded mb-2 border border-surface-600"
+                      style={{ background: texture.pattern }}
+                    />
+                    <div className="text-xs text-white font-medium">{texture.name}</div>
+                    <div className="text-xs text-surface-400">{texture.category}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Custom Textures */}
+            <div>
+              <h3 className="text-sm font-semibold text-surface-300 mb-2">Custom Textures</h3>
+              {Object.keys(customTextures).length === 0 ? (
+                <div className="text-sm text-surface-500 italic">No custom textures yet</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(customTextures).map(([key, texture]) => (
+                    <div
+                      key={key}
+                      className="bg-surface-800 rounded-lg p-2 group relative"
+                    >
+                      <div
+                        className="w-full h-12 rounded mb-2 border border-surface-600 cursor-pointer"
+                        style={{ background: texture.pattern }}
+                        onClick={() => loadTexture(key)}
+                      />
+                      <div className="text-xs text-white font-medium">{texture.name}</div>
+                      <button
+                        onClick={() => deleteCustomTexture(key)}
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-600 rounded text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Selected Texture */}
+            {selectedTexture && (
+              <div className="bg-surface-800 rounded-lg p-3">
+                <h3 className="text-sm font-semibold text-surface-300 mb-2">Selected Texture</h3>
+                <div
+                  className="w-full h-12 rounded mb-2 border border-surface-600"
+                  style={{ background: selectedTexture.pattern }}
+                />
+                <div className="text-sm text-white font-medium">{selectedTexture.name}</div>
+                <div className="text-xs text-surface-400 mb-3">{selectedTexture.category}</div>
+                
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-surface-300">Apply to:</h4>
+                  <div className="grid grid-cols-3 gap-1">
+                    {Object.entries(BLOCK_TYPES).map(([type, block]) => (
+                      <button
+                        key={type}
+                        onClick={() => applyTextureToBlock(type, selectedTexture)}
+                        className="px-2 py-1 bg-surface-700 hover:bg-primary-600 text-xs rounded transition-colors"
+                        title={`Apply to ${block.name}`}
+                      >
+                        {block.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
   
   // Render mini-map
   const renderMiniMap = () => {
@@ -256,15 +633,15 @@ const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
   const resetWorld = () => {
     setWorld({})
     setPlayer(prev => ({
-      ...prev,
-      inventory: {
-grass: 50,
+inventory: {
+        grass: 50,
         dirt: 30,
         stone: 25,
         wood: 20,
         water: 15,
         sand: 40
       }
+    }))
     }))
     setStatistics({
       totalBlocksPlaced: 0,
@@ -421,6 +798,27 @@ grass: 50,
               <ApperIcon name="BarChart3" size={16} />
             </button>
             <button
+              onClick={() => setTextureMode(!textureMode)}
+              className={`control-button ${textureMode ? 'bg-purple-600' : ''}`}
+              title="Toggle Texture Mode"
+            >
+              <ApperIcon name="Palette" size={16} />
+            </button>
+            <button
+              onClick={() => setShowTextureDesigner(!showTextureDesigner)}
+              className="control-button hover:bg-purple-600"
+              title="Open Texture Designer"
+            >
+              <ApperIcon name="Paintbrush" size={16} />
+            </button>
+            <button
+              onClick={() => setShowTextureLibrary(!showTextureLibrary)}
+              className="control-button hover:bg-purple-600"
+              title="Open Texture Library"
+            >
+              <ApperIcon name="Images" size={16} />
+            </button>
+            <button
               onClick={() => setDarkMode(!darkMode)}
               className="control-button"
             >
@@ -459,7 +857,6 @@ grass: 50,
 </div>
         </div>
       </div>
-      
       {/* Mini-Map Overlay */}
       <AnimatePresence>
         {showMiniMap && (
@@ -519,8 +916,17 @@ grass: 50,
                 </div>
               </div>
             </div>
-          </motion.div>
+</motion.div>
         )}
+      </AnimatePresence>
+      {/* Texture Designer Modal */}
+      <AnimatePresence>
+        {showTextureDesigner && renderTextureDesigner()}
+      </AnimatePresence>
+      
+      {/* Texture Library Panel */}
+      <AnimatePresence>
+        {showTextureLibrary && renderTextureLibrary()}
       </AnimatePresence>
       
       {/* Inventory Bar - Bottom */}
@@ -533,11 +939,14 @@ grass: 50,
                 className={`inventory-slot ${player.selectedSlot === type ? 'active' : ''}`}
                 onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
                 whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+whileTap={{ scale: 0.95 }}
               >
                 <div 
                   className="block-preview"
-                  style={{ backgroundColor: block.color }}
+                  style={{ 
+                    backgroundColor: block.texture ? 'transparent' : block.color,
+                    background: block.texture ? block.texture.pattern : block.color
+                  }}
                 >
                   <ApperIcon name={block.icon} size={12} className="text-white" />
                 </div>
@@ -547,12 +956,16 @@ grass: 50,
               </motion.div>
             ))}
           </div>
+</div>
           
           {/* Current tool info */}
           <div className="text-center text-sm text-surface-300">
             <div className="flex items-center justify-center gap-2">
               <ApperIcon name={isBuilding ? "Plus" : "Minus"} size={16} />
               <span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
+              <span className="text-surface-500">|</span>
+              <ApperIcon name={textureMode ? "Palette" : "Square"} size={16} />
+              <span>{textureMode ? 'Texture' : 'Color'} Mode</span>
               <span className="text-surface-500">|</span>
               <span>{BLOCK_TYPES[player.selectedSlot]?.name}</span>
             </div>

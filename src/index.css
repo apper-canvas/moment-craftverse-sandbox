@@ -52,6 +52,34 @@
   }
 }
 
+@layer components {
+  .texture-canvas {
+    @apply bg-white border-2 border-surface-600 rounded;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  
+  .texture-pixel {
+    @apply border border-gray-300 cursor-pointer transition-transform;
+  }
+  
+  .texture-pixel:hover {
+    @apply scale-110;
+  }
+  
+  .texture-tool-active {
+    @apply bg-primary-600 border-primary-500;
+  }
+  
+  .texture-preview {
+    @apply border border-surface-600 rounded bg-surface-700;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+}
+
 @layer utilities {
   .text-shadow {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
