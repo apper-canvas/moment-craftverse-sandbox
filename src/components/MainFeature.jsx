@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { toast } from 'react-toastify'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Play, 
-  Pause, 
+  Pause,
   RotateCcw, 
   Save, 
   Upload, 
@@ -46,19 +47,20 @@ const BLOCK_TYPES = {
     color: '#6B7280', 
     name: 'Stone',
     texture: null,
-    pattern: 'solid'
-  },
+},
   wood: { 
     color: '#A16207', 
     name: 'Wood',
     texture: null,
-},
+    pattern: 'solid'
+  },
   water: { 
-    color: '#3B82F6', 
+    color: '#3B82F6',
     name: 'Water',
     texture: null,
     pattern: 'solid'
   },
+  sand: {
   sand: { 
     color: '#F59E0B', 
     name: 'Sand',
@@ -72,6 +74,10 @@ const WORLD_SIZE = { width: 20, height: 10, depth: 20 }
 
 // State declarations
 const MainFeature = () => {
+  // Refs
+  const gameRef = useRef(null)
+  const loadWorldRef = useRef(null)
+  
   const [isPlaying, setIsPlaying] = useState(false)
   const [isBuilding, setIsBuilding] = useState(true)
   const [hoveredBlock, setHoveredBlock] = useState(null)
@@ -99,8 +105,7 @@ const MainFeature = () => {
     return initialWorld
   })
   
-  const [player, setPlayer] = useState({
-    position: { x: 10, y: 4, z: 10 },
+const [player, setPlayer] = useState({
     position: { x: 10, y: 4, z: 10 },
     inventory: {
       grass: 50,
@@ -114,25 +119,22 @@ const MainFeature = () => {
     gameMode: 'creative'
 })
   
-  // Texture system state
+// Texture system state
   const [textureMode, setTextureMode] = useState(false)
   const [showTextureDesigner, setShowTextureDesigner] = useState(false)
   const [showTextureLibrary, setShowTextureLibrary] = useState(false)
   const [selectedTexture, setSelectedTexture] = useState(null)
-const [customTextures, setCustomTextures] = useState({})
+  const [customTextures, setCustomTextures] = useState({})
   const [currentTexture, setCurrentTexture] = useState({
     name: '',
     pixels: Array(16).fill().map(() => Array(16).fill('#4ADE80'))
   })
   const [selectedTool, setSelectedTool] = useState('brush')
   const [textureLibrary, setTextureLibrary] = useState([])
-  const [showTextureDesigner, setShowTextureDesigner] = useState(false)
-  const [showTextureLibrary, setShowTextureLibrary] = useState(false)
   const [textureScale, setTextureScale] = useState(1)
   const [textureRotation, setTextureRotation] = useState(0)
   const [textureBlendMode, setTextureBlendMode] = useState('overlay')
   const [showMiniMap, setShowMiniMap] = useState(true)
-
   // Graphics settings state
   const [showGraphicsSettings, setShowGraphicsSettings] = useState(false)
   const [graphicsSettings, setGraphicsSettings] = useState(() => {
@@ -230,8 +232,7 @@ const [customTextures, setCustomTextures] = useState({})
       }
     } else {
       // Place block
-      if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
-      if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
+if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
         setWorld(prev => ({
           ...prev,
           [blockKey]: player.selectedSlot
@@ -367,19 +368,19 @@ inventory: {
       setWorld(prev => {
         const newWorld = { ...prev }
         newWorld[`${x},${y}`] = blockToPlace
-        return newWorld
-      })
+})
       
-      setStats(prev => ({
+      setStatistics(prev => ({
         ...prev,
-        totalBlocks: prev.totalBlocks + 1,
-        uniqueTypes: new Set([...prev.uniqueTypes, selectedBlock]).size
+        totalBlocksPlaced: prev.totalBlocksPlaced + 1,
+        uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, selectedBlock])
       }))
 
       toast.success(`Placed ${BLOCK_TYPES[selectedBlock].name} block!`)
     }
 }, [selectedBlock, currentTexture, textureScale, textureRotation, textureBlendMode])
 
+  // World rendering function
   // World rendering function
   const renderWorld = () => {
     const blocks = []
@@ -435,14 +436,14 @@ inventory: {
             style={{ 
               backgroundColor: block.texture ? 'transparent' : block.color,
               background: block.texture ? block.texture.pattern : block.color,
+style={{ 
+              backgroundColor: block.texture ? 'transparent' : block.color,
+              background: block.texture ? block.texture.pattern : block.color,
               boxShadow: isHovered ? '0 0 15px rgba(255,255,255,0.5)' : `inset 0 0 0 1px rgba(255,255,255,0.2)`
             }}
           >
             {blockType.charAt(0).toUpperCase()}
           </div>
-          
-          {/* Block highlight effect */}
-          {isHovered && (
             <div className="absolute inset-0 rounded border-2 border-white animate-pulse opacity-50" />
           )}
         </motion.div>
@@ -869,8 +870,7 @@ whileTap={{ scale: 0.95 }}
     )
   }
   
-  return (
-  return (
+return (
     <div className="w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui">
       {/* Game Canvas */}
       <div 
@@ -922,12 +922,11 @@ whileTap={{ scale: 0.95 }}
         </div>
         
         {/* Performance Monitor */}
-        <div className="hud-panel">
+<div className="hud-panel">
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
-<div className="flex items-center gap-2">
               <Monitor size={16} className="text-green-400" />
-              <span>FPS: {performance.fps}</span>
+              <span>FPS: {fps}</span>
             </div>
             <div className="flex items-center gap-2">
               <Square size={16} className="text-blue-400" />
@@ -1125,10 +1124,8 @@ style={{
           {/* Current tool info */}
           <div className="text-center text-sm text-surface-300">
             <div className="flex items-center justify-center gap-2">
-              <Square size={16} />
-              <span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
+<span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
               <span className="text-surface-500">|</span>
-<span className="text-surface-500">|</span>
               <Palette size={16} />
               <span>{textureMode ? 'Texture' : 'Color'} Mode</span>
               <span className="text-surface-500">|</span>
@@ -1147,9 +1144,8 @@ style={{
           >
             ↑
           </button>
-          <button
+<button
             onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
-onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
             className="control-button w-full"
           >
             ←
@@ -1183,9 +1179,9 @@ onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
           <div className="text-surface-400">• Right Click: Mine block</div>
           <div className="text-surface-400">• Mouse Wheel: Zoom</div>
           <div className="text-surface-400">• Arrow Panel: Move camera</div>
-        </div>
-      </div>
 </div>
+      </div>
+    </div>
   )
 }
 
