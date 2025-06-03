@@ -41,14 +41,15 @@ const BLOCK_TYPES = {
     color: '#92400E', 
     name: 'Dirt',
     texture: null,
-    pattern: 'solid'
+pattern: 'solid'
   },
   stone: { 
     color: '#6B7280', 
     name: 'Stone',
     texture: null,
-},
-  wood: { 
+    pattern: 'solid'
+  },
+  wood: {
     color: '#A16207', 
     name: 'Wood',
     texture: null,
@@ -60,7 +61,6 @@ const BLOCK_TYPES = {
     texture: null,
     pattern: 'solid'
   },
-  sand: {
   sand: { 
     color: '#F59E0B', 
     name: 'Sand',
@@ -353,10 +353,9 @@ inventory: {
     }
     animate()
   }, [updateFPS])
-
-  // World interaction handlers
+// World interaction handlers
   const placeBlock = useCallback((x, y) => {
-    if (selectedBlock && x >= 0 && x < WORLD_SIZE && y >= 0 && y < WORLD_SIZE) {
+    if (selectedBlock && x >= 0 && x < WORLD_SIZE.width && y >= 0 && y < WORLD_SIZE.depth) {
       const blockToPlace = { 
         ...BLOCK_TYPES[selectedBlock],
         texture: currentTexture,
@@ -365,11 +364,11 @@ inventory: {
         blendMode: textureBlendMode
       }
       
-      setWorld(prev => {
+setWorld(prev => {
         const newWorld = { ...prev }
         newWorld[`${x},${y}`] = blockToPlace
-})
-      
+        return newWorld
+      })
       setStatistics(prev => ({
         ...prev,
         totalBlocksPlaced: prev.totalBlocksPlaced + 1,
@@ -433,17 +432,15 @@ inventory: {
           {/* Main block */}
           <div 
             className="w-8 h-8 rounded border-2 flex items-center justify-center text-white font-bold text-xs transition-all duration-200"
-            style={{ 
-              backgroundColor: block.texture ? 'transparent' : block.color,
-              background: block.texture ? block.texture.pattern : block.color,
 style={{ 
               backgroundColor: block.texture ? 'transparent' : block.color,
               background: block.texture ? block.texture.pattern : block.color,
               boxShadow: isHovered ? '0 0 15px rgba(255,255,255,0.5)' : `inset 0 0 0 1px rgba(255,255,255,0.2)`
             }}
           >
-            {blockType.charAt(0).toUpperCase()}
+{blockType.charAt(0).toUpperCase()}
           </div>
+          {isHovered && (
             <div className="absolute inset-0 rounded border-2 border-white animate-pulse opacity-50" />
           )}
         </motion.div>
@@ -637,8 +634,8 @@ className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white r
         exit={{ opacity: 0, x: 300 }}
         className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
       >
-        <div className="p-4">
-<div className="flex items-center justify-between mb-4">
+<div className="p-4">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Image size={20} className="text-primary-400" />
               Texture Library
@@ -1030,9 +1027,9 @@ return (
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, x: 50 }}
             transition={{ duration: 0.3 }}
-            className="absolute top-24 right-4 z-50"
+className="absolute top-24 right-4 z-50"
           >
-<div className="hud-panel p-2">
+            <div className="hud-panel p-2">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-surface-300 flex items-center gap-1">
                   <Map size={14} />
@@ -1105,9 +1102,10 @@ return (
                 onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
                 whileHover={{ scale: 1.1 }}
 whileTap={{ scale: 0.95 }}
-              >
+>
                 <div 
-style={{ 
+                  className="block-preview"
+                  style={{ 
                     backgroundColor: block.texture ? 'transparent' : block.color,
                     background: block.texture ? block.texture.pattern : block.color
                   }}
@@ -1122,9 +1120,9 @@ style={{
           </div>
           
           {/* Current tool info */}
-          <div className="text-center text-sm text-surface-300">
+<div className="text-center text-sm text-surface-300">
             <div className="flex items-center justify-center gap-2">
-<span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
+              <span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
               <span className="text-surface-500">|</span>
               <Palette size={16} />
               <span>{textureMode ? 'Texture' : 'Color'} Mode</span>
