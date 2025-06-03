@@ -1,47 +1,91 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { toast } from 'react-toastify'
-import ApperIcon from './ApperIcon'
+import { 
+  Play, 
+  Pause, 
+  RotateCcw, 
+  Save, 
+  Upload, 
+  Download,
+  Zap,
+  Map,
+  Palette,
+  Brush,
+  Square,
+  Pipette,
+  RotateCw,
+  Download as DownloadIcon,
+  Upload as UploadIcon,
+  Trash2,
+  Eye,
+  EyeOff,
+  Settings,
+  Monitor,
+  Sun,
+  Sparkles,
+  Image,
+  Wind,
+  Eye as ViewIcon
+} from 'lucide-react'
 
+// Block types with enhanced properties
 const BLOCK_TYPES = {
-  grass: { name: 'Grass', color: '#4ADE80', icon: 'Square', texture: null },
-  dirt: { name: 'Dirt', color: '#92400E', icon: 'Square', texture: null },
-  stone: { name: 'Stone', color: '#6B7280', icon: 'Square', texture: null },
-  wood: { name: 'Wood', color: '#A16207', icon: 'Square', texture: null },
-  water: { name: 'Water', color: '#3B82F6', icon: 'Waves', texture: null },
-  sand: { name: 'Sand', color: '#FCD34D', icon: 'Square', texture: null }
-}
-
-const PRESET_TEXTURES = {
-  brick: {
-    name: 'Brick',
-    pattern: 'repeating-linear-gradient(0deg, #B91C1C 0px, #B91C1C 4px, #7F1D1D 4px, #7F1D1D 8px)',
-    category: 'building'
+  grass: { 
+    color: '#4ADE80', 
+    name: 'Grass',
+    texture: null,
+    pattern: 'solid'
   },
-  cobblestone: {
-    name: 'Cobblestone', 
-    pattern: 'radial-gradient(circle at 25% 25%, #6B7280 0%, #4B5563 50%, #374151 100%)',
-    category: 'building'
+  dirt: { 
+    color: '#92400E', 
+    name: 'Dirt',
+    texture: null,
+    pattern: 'solid'
   },
-  mossy: {
-    name: 'Mossy',
-    pattern: 'repeating-conic-gradient(from 0deg at 50% 50%, #22C55E 0deg, #16A34A 90deg, #15803D 180deg)',
-    category: 'nature'
+  stone: { 
+    color: '#6B7280', 
+    name: 'Stone',
+    texture: null,
+    pattern: 'solid'
   },
-  marble: {
-    name: 'Marble',
-    pattern: 'linear-gradient(45deg, #F3F4F6, #E5E7EB, #D1D5DB, #F3F4F6)',
-    category: 'luxury'
+  wood: { 
+    color: '#A16207', 
+    name: 'Wood',
+    texture: null,
+},
+  water: { 
+    color: '#3B82F6', 
+    name: 'Water',
+    texture: null,
+    pattern: 'solid'
+  },
+  sand: { 
+    color: '#F59E0B', 
+    name: 'Sand',
+    texture: null,
+    pattern: 'solid'
   }
 }
 
-const WORLD_SIZE = { width: 20, height: 15, depth: 20 }
+// World constants
+const WORLD_SIZE = { width: 20, height: 10, depth: 20 }
 
-const MainFeature = ({ darkMode, setDarkMode }) => {
-  // Game State
+// State declarations
+const MainFeature = () => {
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isBuilding, setIsBuilding] = useState(true)
+  const [hoveredBlock, setHoveredBlock] = useState(null)
+  const [selectedBlock, setSelectedBlock] = useState('grass')
+  const [performance, setPerformance] = useState({ fps: 60, chunks: 4 })
+  const [statistics, setStatistics] = useState({
+    totalBlocksPlaced: 0,
+    totalBlocksMined: 0,
+    uniqueBlockTypes: new Set()
+  })
+  
+  // World state with initial terrain
   const [world, setWorld] = useState(() => {
     const initialWorld = {}
-    // Generate initial terrain
     for (let x = 0; x < WORLD_SIZE.width; x++) {
       for (let z = 0; z < WORLD_SIZE.depth; z++) {
         for (let y = 0; y < 3; y++) {
@@ -56,6 +100,7 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
   })
   
   const [player, setPlayer] = useState({
+    position: { x: 10, y: 4, z: 10 },
     position: { x: 10, y: 4, z: 10 },
     inventory: {
       grass: 50,
@@ -74,75 +119,118 @@ const MainFeature = ({ darkMode, setDarkMode }) => {
   const [showTextureDesigner, setShowTextureDesigner] = useState(false)
   const [showTextureLibrary, setShowTextureLibrary] = useState(false)
   const [selectedTexture, setSelectedTexture] = useState(null)
-  const [customTextures, setCustomTextures] = useState({})
+const [customTextures, setCustomTextures] = useState({})
   const [currentTexture, setCurrentTexture] = useState({
     name: '',
-    pixels: Array(16).fill().map(() => Array(16).fill('#4ADE80')),
-    size: 16
+    pixels: Array(16).fill().map(() => Array(16).fill('#4ADE80'))
   })
-  
-  const [camera, setCamera] = useState({ x: 0, y: -20, zoom: 1 })
-  const [isBuilding, setIsBuilding] = useState(true)
-  const [hoveredBlock, setHoveredBlock] = useState(null)
-  const [performance, setPerformance] = useState({ fps: 60, chunks: 1 })
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [showMiniMap, setShowMiniMap] = useState(false)
-  const [statistics, setStatistics] = useState({
-    totalBlocksPlaced: 0,
-    totalBlocksMined: 0,
-    uniqueBlockTypes: new Set()
-  })
-  // Refs
-  const gameRef = useRef(null)
-  const animationRef = useRef(null)
-  const lastFrameTime = useRef(0)
-  
-// Performance monitoring
-  useEffect(() => {
-    const updateFPS = () => {
-      const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()
-      const fps = Math.round(1000 / (now - lastFrameTime.current))
-      lastFrameTime.current = now
-      setPerformance(prev => ({ ...prev, fps: fps > 0 ? fps : 60 }))
+  const [selectedTool, setSelectedTool] = useState('brush')
+  const [textureLibrary, setTextureLibrary] = useState([])
+  const [showTextureDesigner, setShowTextureDesigner] = useState(false)
+  const [showTextureLibrary, setShowTextureLibrary] = useState(false)
+  const [textureScale, setTextureScale] = useState(1)
+  const [textureRotation, setTextureRotation] = useState(0)
+  const [textureBlendMode, setTextureBlendMode] = useState('overlay')
+  const [showMiniMap, setShowMiniMap] = useState(true)
+
+  // Graphics settings state
+  const [showGraphicsSettings, setShowGraphicsSettings] = useState(false)
+  const [graphicsSettings, setGraphicsSettings] = useState(() => {
+    const saved = localStorage.getItem('craftverse-graphics-settings')
+    return saved ? JSON.parse(saved) : {
+      resolution: '1920x1080',
+      lightingQuality: 'high',
+      antiAliasing: 'fxaa',
+      textureQuality: 'high',
+      particleEffects: 'high',
+      viewDistance: 'far',
+      shadows: true,
+      reflections: true,
+      motionBlur: false,
+      vSync: true
     }
-    
-    const interval = setInterval(updateFPS, 1000)
-    return () => clearInterval(interval)
+  })
+
+  // FPS monitoring
+  const [fps, setFps] = useState(60)
+  const frameCountRef = useRef(0)
+  const lastTimeRef = useRef(performance.now ? performance.now() : Date.now())
+
+  // Camera state
+  const [camera, setCamera] = useState({
+    x: 0,
+    y: 0,
+    zoom: 1,
+    rotation: 0
+  })
+
+  // Player position for mini-map
+  const [playerPosition, setPlayerPosition] = useState({ x: 10, y: 10 })
+// Save graphics settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('craftverse-graphics-settings', JSON.stringify(graphicsSettings))
+    applyGraphicsSettings(graphicsSettings)
+  }, [graphicsSettings])
+
+  // Initialize default textures
+  useEffect(() => {
+    const defaultTextures = [
+      {
+        id: 'cobblestone',
+        name: 'Cobblestone',
+        pattern: 'repeating-linear-gradient(45deg, #666 0px, #666 4px, #888 4px, #888 8px)',
+        size: 16
+      },
+      {
+        id: 'brick',
+        name: 'Brick',
+        pattern: 'repeating-linear-gradient(0deg, #B91C1C 0px, #B91C1C 8px, #7F1D1D 8px, #7F1D1D 16px)',
+        size: 16
+      },
+      {
+        id: 'marble',
+        name: 'Marble',
+        pattern: 'radial-gradient(circle, #F3F4F6 30%, #E5E7EB 70%)',
+        size: 16
+      }
+    ]
+    setTextureLibrary(defaultTextures)
   }, [])
-  
-  // Block placement/destruction
-  const handleBlockInteraction = useCallback((x, y, z, isRightClick = false) => {
+
+  // Block interaction handler
+  const handleBlockInteraction = useCallback((x, y, z, isMining) => {
     const blockKey = `${x},${y},${z}`
     
-    if (isRightClick || !isBuilding) {
-      // Destroy block
+    if (isMining) {
+      // Mine block
       if (world[blockKey]) {
+        const blockType = world[blockKey]
         setWorld(prev => {
           const newWorld = { ...prev }
-          const blockType = newWorld[blockKey]
           delete newWorld[blockKey]
-// Add to inventory
-          setPlayer(prevPlayer => ({
-            ...prevPlayer,
-            inventory: {
-              ...prevPlayer.inventory,
-              [blockType]: (prevPlayer.inventory[blockType] || 0) + 1
-            }
-          }))
-          
-          // Update statistics
-          setStatistics(prev => ({
-            ...prev,
-            totalBlocksMined: prev.totalBlocksMined + 1,
-            uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, blockType])
-          }))
-          
-          toast.success(`Mined ${BLOCK_TYPES[blockType]?.name || blockType}!`)
           return newWorld
         })
+        
+        setPlayer(prev => ({
+          ...prev,
+          inventory: {
+            ...prev.inventory,
+            [blockType]: (prev.inventory[blockType] || 0) + 1
+          }
+        }))
+        
+        // Update statistics
+        setStatistics(prev => ({
+          ...prev,
+          totalBlocksMined: prev.totalBlocksMined + 1,
+          uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, blockType])
+        }))
+        
+        toast.success(`Mined ${BLOCK_TYPES[blockType]?.name || blockType}!`)
       }
     } else {
       // Place block
+      if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
       if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
         setWorld(prev => ({
           ...prev,
@@ -167,10 +255,23 @@ inventory: {
         toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
       } else if (player.inventory[player.selectedSlot] <= 0) {
         toast.warning(`No ${BLOCK_TYPES[player.selectedSlot]?.name} blocks left!`)
-      }
+}
     }
-}, [world, player.selectedSlot, player.inventory, isBuilding])
+  }, [world, player.selectedSlot, player.inventory])
   
+  // Utility functions
+  const createPatternFromPixels = (pixels) => {
+    return `url("data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'>${
+        pixels.map((row, y) => 
+          row.map((color, x) => 
+            `<rect x='${x}' y='${y}' width='1' height='1' fill='${color}'/>`
+          ).join('')
+        ).join('')
+      }</svg>`
+    )}")`
+  }
+
   // Texture management functions
   const saveCustomTexture = useCallback(() => {
     if (!currentTexture.name.trim()) {
@@ -194,59 +295,99 @@ inventory: {
   }, [currentTexture])
   
   const loadTexture = useCallback((textureName) => {
-    const texture = customTextures[textureName] || PRESET_TEXTURES[textureName]
+    const texture = customTextures[textureName]
     if (texture) {
       setSelectedTexture(texture)
-      setTextureMode(true)
-      toast.success(`Selected ${texture.name} texture!`)
     }
   }, [customTextures])
-  
-  const createPatternFromPixels = (pixels) => {
-    const size = pixels.length
-    let pattern = `repeating-linear-gradient(0deg, `
-    
-    for (let i = 0; i < size; i++) {
-      const color = pixels[i][0] // Use first pixel of row for simplicity
-      pattern += `${color} ${i * (100 / size)}%, ${color} ${(i + 1) * (100 / size)}%`
-      if (i < size - 1) pattern += ', '
-    }
-    
-    pattern += ')'
-    return pattern
-  }
-  
-  const applyTextureToBlock = useCallback((blockType, texture) => {
-    // Update block type with texture
-    BLOCK_TYPES[blockType].texture = texture
-    toast.success(`Applied ${texture.name} texture to ${BLOCK_TYPES[blockType].name}!`)
-  }, [])
-  
+
   const deleteCustomTexture = useCallback((textureName) => {
     setCustomTextures(prev => {
       const newTextures = { ...prev }
       delete newTextures[textureName]
       return newTextures
     })
-    toast.success(`Deleted texture "${textureName}"!`)
+    toast.info(`Texture "${textureName}" deleted`)
   }, [])
-  // Render 3D world in isometric view
+
+  const applyTextureToBlock = useCallback((blockType, texture) => {
+    // Apply texture to specific block type
+    toast.success(`Applied ${texture.name} to ${BLOCK_TYPES[blockType]?.name}`)
+  }, [])
+
+  // Apply graphics settings to the game
+  const applyGraphicsSettings = (settings) => {
+    const canvas = document.querySelector('.game-canvas')
+    if (canvas) {
+      // Apply resolution
+      const [width, height] = settings.resolution.split('x').map(Number)
+      canvas.style.maxWidth = `${width}px`
+      canvas.style.maxHeight = `${height}px`
+      
+      // Apply anti-aliasing
+      canvas.style.imageRendering = settings.antiAliasing === 'none' ? 'pixelated' : 'auto'
+      
+      // Apply other visual effects through CSS classes
+      canvas.className = `game-canvas ${settings.lightingQuality}-lighting ${settings.textureQuality}-textures`
+    }
+  }
+
+  // Update FPS counter
+  const updateFPS = useCallback(() => {
+    frameCountRef.current++
+    const now = performance.now ? performance.now() : Date.now()
+    
+    if (now - lastTimeRef.current >= 1000) {
+      setFps(frameCountRef.current)
+      frameCountRef.current = 0
+      lastTimeRef.current = now
+    }
+  }, [])
+
+  // Animation loop
+  useEffect(() => {
+    const animate = () => {
+      updateFPS()
+      requestAnimationFrame(animate)
+    }
+    animate()
+  }, [updateFPS])
+
+  // World interaction handlers
+  const placeBlock = useCallback((x, y) => {
+    if (selectedBlock && x >= 0 && x < WORLD_SIZE && y >= 0 && y < WORLD_SIZE) {
+      const blockToPlace = { 
+        ...BLOCK_TYPES[selectedBlock],
+        texture: currentTexture,
+        scale: textureScale,
+        rotation: textureRotation,
+        blendMode: textureBlendMode
+      }
+      
+      setWorld(prev => {
+        const newWorld = { ...prev }
+        newWorld[`${x},${y}`] = blockToPlace
+        return newWorld
+      })
+      
+      setStats(prev => ({
+        ...prev,
+        totalBlocks: prev.totalBlocks + 1,
+        uniqueTypes: new Set([...prev.uniqueTypes, selectedBlock]).size
+      }))
+
+      toast.success(`Placed ${BLOCK_TYPES[selectedBlock].name} block!`)
+    }
+}, [selectedBlock, currentTexture, textureScale, textureRotation, textureBlendMode])
+
+  // World rendering function
   const renderWorld = () => {
     const blocks = []
-    const sortedKeys = Object.keys(world).sort((a, b) => {
-      const [ax, ay, az] = a.split(',').map(Number)
-      const [bx, by, bz] = b.split(',').map(Number)
-      return (bx + by + bz) - (ax + ay + az) // Back to front sorting
-    })
     
-    sortedKeys.forEach(key => {
+    Object.entries(world).forEach(([key, blockType]) => {
       const [x, y, z] = key.split(',').map(Number)
-      const blockType = world[key]
-      const block = BLOCK_TYPES[blockType]
+      const block = BLOCK_TYPES[blockType] || BLOCK_TYPES.grass
       
-      if (!block) return
-      
-      // Isometric projection
       const isoX = (x - z) * 30
       const isoY = (x + z) * 15 - y * 35
       
@@ -285,21 +426,19 @@ inventory: {
               left: '2px',
               top: '8px',
               zIndex: -1
-            }}
+}}
           />
-/>
           
           {/* Main block */}
           <div 
-            className={`w-8 h-8 rounded border-2 flex items-center justify-center text-white font-bold text-xs transition-all duration-200 ${
-            }`}
+            className="w-8 h-8 rounded border-2 flex items-center justify-center text-white font-bold text-xs transition-all duration-200"
             style={{ 
               backgroundColor: block.texture ? 'transparent' : block.color,
               background: block.texture ? block.texture.pattern : block.color,
               boxShadow: isHovered ? '0 0 15px rgba(255,255,255,0.5)' : `inset 0 0 0 1px rgba(255,255,255,0.2)`
             }}
           >
-            <ApperIcon name={block.icon} size={12} />
+            {blockType.charAt(0).toUpperCase()}
           </div>
           
           {/* Block highlight effect */}
@@ -311,7 +450,7 @@ inventory: {
     })
     
     return blocks
-}
+  }
   
   // Texture Designer Component
   const renderTextureDesigner = () => {
@@ -365,22 +504,21 @@ inventory: {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <ApperIcon name="Palette" size={24} className="text-primary-400" />
+              <Palette size={24} className="text-primary-400" />
               Texture Designer
             </h2>
             <button
               onClick={() => setShowTextureDesigner(false)}
               className="control-button hover:bg-red-600"
             >
-              <ApperIcon name="X" size={16} />
+              ✕
             </button>
           </div>
-          
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Canvas */}
             <div className="lg:col-span-2">
@@ -410,32 +548,31 @@ inventory: {
                 <h3 className="text-lg font-semibold mb-4 text-white">Tools</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setActiveTool('brush')}
+onClick={() => setActiveTool('brush')}
                     className={`control-button ${activeTool === 'brush' ? 'bg-primary-600' : ''}`}
                   >
-                    <ApperIcon name="Paintbrush" size={16} />
+                    <Brush size={16} />
                   </button>
                   <button
                     onClick={() => setActiveTool('fill')}
                     className={`control-button ${activeTool === 'fill' ? 'bg-primary-600' : ''}`}
                   >
-                    <ApperIcon name="PaintBucket" size={16} />
+                    <Square size={16} />
                   </button>
                   <button
                     onClick={() => setActiveTool('eyedropper')}
                     className={`control-button ${activeTool === 'eyedropper' ? 'bg-primary-600' : ''}`}
                   >
-                    <ApperIcon name="Eyedropper" size={16} />
+                    <Pipette size={16} />
                   </button>
                   <button
                     onClick={clearCanvas}
                     className="control-button hover:bg-red-600"
                   >
-                    <ApperIcon name="Eraser" size={16} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
-              
               {/* Color Picker */}
               <div className="bg-surface-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4 text-white">Color</h3>
@@ -470,9 +607,9 @@ inventory: {
                 />
                 <button
                   onClick={saveCustomTexture}
-                  className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white rounded font-medium"
+className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white rounded font-medium"
                 >
-                  <ApperIcon name="Save" size={16} className="inline mr-2" />
+                  <Save size={16} className="inline mr-2" />
                   Save Texture
                 </button>
               </div>
@@ -485,6 +622,11 @@ inventory: {
   
   // Texture Library Component
   const renderTextureLibrary = () => {
+    const PRESET_TEXTURES = {
+      cobblestone: { name: 'Cobblestone', pattern: 'repeating-linear-gradient(45deg, #666 0px, #666 4px, #888 4px, #888 8px)', category: 'preset' },
+      brick: { name: 'Brick', pattern: 'repeating-linear-gradient(0deg, #B91C1C 0px, #B91C1C 8px, #7F1D1D 8px, #7F1D1D 16px)', category: 'preset' },
+      marble: { name: 'Marble', pattern: 'radial-gradient(circle, #F3F4F6 30%, #E5E7EB 70%)', category: 'preset' }
+    }
     const allTextures = { ...PRESET_TEXTURES, ...customTextures }
     
     return (
@@ -495,16 +637,16 @@ inventory: {
         className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
       >
         <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
+<div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <ApperIcon name="Images" size={20} className="text-primary-400" />
+              <Image size={20} className="text-primary-400" />
               Texture Library
             </h2>
             <button
               onClick={() => setShowTextureLibrary(false)}
               className="control-button hover:bg-red-600"
             >
-              <ApperIcon name="X" size={16} />
+              ✕
             </button>
           </div>
           
@@ -625,15 +767,17 @@ inventory: {
   }
   
   // Start game
+// Game control functions
   const startGame = () => {
     setIsPlaying(true)
     toast.success('Welcome to CraftVerse! Start building your world!')
   }
-  // Reset world
+  
   const resetWorld = () => {
     setWorld({})
     setPlayer(prev => ({
-inventory: {
+      ...prev,
+      inventory: {
         grass: 50,
         dirt: 30,
         stone: 25,
@@ -641,7 +785,6 @@ inventory: {
         water: 15,
         sand: 40
       }
-    }))
     }))
     setStatistics({
       totalBlocksPlaced: 0,
@@ -651,6 +794,17 @@ inventory: {
     toast.info('World reset!')
   }
   
+  const saveWorld = () => {
+    const worldData = JSON.stringify({ world, player, statistics })
+    const blob = new Blob([worldData], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'craftverse-world.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('World saved!')
+  }
   if (!isPlaying) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-primary-900 to-surface-900 relative overflow-hidden">
@@ -705,10 +859,9 @@ inventory: {
           <motion.button
             onClick={startGame}
             className="px-12 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700 text-white text-xl font-semibold rounded-2xl transition-all duration-300 shadow-2xl hover:shadow-game hover:scale-105 flex items-center gap-3 mx-auto"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+whileTap={{ scale: 0.95 }}
           >
-            <ApperIcon name="Play" size={24} />
+            <Play size={24} />
             Start Building
           </motion.button>
         </motion.div>
@@ -716,6 +869,7 @@ inventory: {
     )
   }
   
+  return (
   return (
     <div className="w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui">
       {/* Game Canvas */}
@@ -755,11 +909,11 @@ inventory: {
       </div>
       
       {/* HUD - Top Bar */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
+<div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
         {/* Game Title & Mode */}
         <div className="hud-panel">
           <div className="flex items-center gap-3">
-            <ApperIcon name="Blocks" size={20} className="text-primary-400" />
+            <Square size={20} className="text-primary-400" />
             <h1 className="text-xl font-bold font-heading text-white">CraftVerse</h1>
             <span className="px-2 py-1 bg-secondary-600 text-xs rounded text-white font-medium">
               {player.gameMode.toUpperCase()}
@@ -771,16 +925,18 @@ inventory: {
         <div className="hud-panel">
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
-              <ApperIcon name="Gauge" size={16} className="text-green-400" />
+<div className="flex items-center gap-2">
+              <Monitor size={16} className="text-green-400" />
               <span>FPS: {performance.fps}</span>
             </div>
             <div className="flex items-center gap-2">
-              <ApperIcon name="Grid3x3" size={16} className="text-blue-400" />
+              <Square size={16} className="text-blue-400" />
               <span>Chunks: {performance.chunks}</span>
             </div>
           </div>
         </div>
-{/* Controls */}
+
+        {/* Controls */}
         <div className="hud-panel">
           <div className="flex gap-2">
             <button
@@ -788,75 +944,85 @@ inventory: {
               className="control-button hover:bg-primary-600"
               title="Toggle Mini-Map"
             >
-              <ApperIcon name="Map" size={16} />
+              <Map size={16} />
             </button>
             <button
-              onClick={() => window.location.href = '/statistics'}
-              className="control-button hover:bg-primary-600"
-              title="View Statistics"
-            >
-              <ApperIcon name="BarChart3" size={16} />
-            </button>
-            <button
-              onClick={() => setTextureMode(!textureMode)}
-              className={`control-button ${textureMode ? 'bg-purple-600' : ''}`}
-              title="Toggle Texture Mode"
-            >
-              <ApperIcon name="Palette" size={16} />
-            </button>
-            <button
-              onClick={() => setShowTextureDesigner(!showTextureDesigner)}
-              className="control-button hover:bg-purple-600"
-              title="Open Texture Designer"
-            >
-              <ApperIcon name="Paintbrush" size={16} />
-            </button>
-            <button
-              onClick={() => setShowTextureLibrary(!showTextureLibrary)}
-              className="control-button hover:bg-purple-600"
-              title="Open Texture Library"
-            >
-              <ApperIcon name="Images" size={16} />
-            </button>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="control-button"
-            >
-              <ApperIcon name={darkMode ? "Sun" : "Moon"} size={16} />
-            </button>
-            <button
-              onClick={() => setIsBuilding(!isBuilding)}
-              className={`control-button ${isBuilding ? 'bg-secondary-600' : 'bg-red-600'}`}
-            >
-              <ApperIcon name={isBuilding ? "Plus" : "Minus"} size={16} />
-            </button>
-            <button
-              onClick={resetWorld}
-              className="control-button hover:bg-red-600"
-            >
-              <ApperIcon name="RotateCcw" size={16} />
-            </button>
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="control-button flex items-center gap-2"
+          >
+            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            {isPlaying ? 'Pause' : 'Play'}
+          </button>
+          
+          <button
+            onClick={resetWorld}
+            className="control-button flex items-center gap-2"
+          >
+            <RotateCcw size={16} />
+            Reset
+          </button>
+          
+          <button
+            onClick={saveWorld}
+            className="control-button flex items-center gap-2"
+          >
+            <Save size={16} />
+            Save
+          </button>
+          
+          <button
+            onClick={() => loadWorldRef.current?.click()}
+            className="control-button flex items-center gap-2"
+          >
+            <Upload size={16} />
+            Load
+          </button>
+          
+          <button
+            onClick={() => setShowMiniMap(!showMiniMap)}
+            className="control-button flex items-center gap-2"
+          >
+            <Map size={16} />
+            {showMiniMap ? 'Hide Map' : 'Show Map'}
+          </button>
+          
+          <button
+            onClick={() => setShowTextureDesigner(!showTextureDesigner)}
+            className="control-button flex items-center gap-2"
+          >
+            <Palette size={16} />
+            Textures
+          </button>
+          
+          <button
+            onClick={() => setShowGraphicsSettings(!showGraphicsSettings)}
+            className="control-button flex items-center gap-2"
+          >
+<Settings size={16} />
+            Graphics
+          </button>
           </div>
         </div>
         
-        {/* Live Statistics */}
+        {/* Statistics */}
         <div className="hud-panel">
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
-              <ApperIcon name="Blocks" size={16} className="text-yellow-400" />
+              <Square size={16} className="text-green-400" />
               <span>Placed: {statistics.totalBlocksPlaced}</span>
             </div>
             <div className="flex items-center gap-2">
-              <ApperIcon name="Pickaxe" size={16} className="text-orange-400" />
+              <Trash2 size={16} className="text-red-400" />
               <span>Mined: {statistics.totalBlocksMined}</span>
             </div>
             <div className="flex items-center gap-2">
-              <ApperIcon name="Palette" size={16} className="text-purple-400" />
+              <Palette size={16} className="text-purple-400" />
               <span>Types: {statistics.uniqueBlockTypes.size}</span>
             </div>
-</div>
+          </div>
         </div>
       </div>
+      
       {/* Mini-Map Overlay */}
       <AnimatePresence>
         {showMiniMap && (
@@ -867,17 +1033,17 @@ inventory: {
             transition={{ duration: 0.3 }}
             className="absolute top-24 right-4 z-50"
           >
-            <div className="hud-panel p-2">
+<div className="hud-panel p-2">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-surface-300 flex items-center gap-1">
-                  <ApperIcon name="Map" size={14} />
+                  <Map size={14} />
                   Mini-Map
                 </h3>
                 <button
                   onClick={() => setShowMiniMap(false)}
                   className="text-surface-400 hover:text-surface-200 transition-colors"
                 >
-                  <ApperIcon name="X" size={12} />
+                  ✕
                 </button>
               </div>
               
@@ -942,13 +1108,12 @@ inventory: {
 whileTap={{ scale: 0.95 }}
               >
                 <div 
-                  className="block-preview"
-                  style={{ 
+style={{ 
                     backgroundColor: block.texture ? 'transparent' : block.color,
                     background: block.texture ? block.texture.pattern : block.color
                   }}
                 >
-                  <ApperIcon name={block.icon} size={12} className="text-white" />
+                  {type.charAt(0).toUpperCase()}
                 </div>
                 <div className="absolute -top-2 -right-2 bg-primary-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                   {player.inventory[type] || 0}
@@ -956,15 +1121,15 @@ whileTap={{ scale: 0.95 }}
               </motion.div>
             ))}
           </div>
-</div>
           
           {/* Current tool info */}
           <div className="text-center text-sm text-surface-300">
             <div className="flex items-center justify-center gap-2">
-              <ApperIcon name={isBuilding ? "Plus" : "Minus"} size={16} />
+              <Square size={16} />
               <span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
               <span className="text-surface-500">|</span>
-              <ApperIcon name={textureMode ? "Palette" : "Square"} size={16} />
+<span className="text-surface-500">|</span>
+              <Palette size={16} />
               <span>{textureMode ? 'Texture' : 'Color'} Mode</span>
               <span className="text-surface-500">|</span>
               <span>{BLOCK_TYPES[player.selectedSlot]?.name}</span>
@@ -980,31 +1145,32 @@ whileTap={{ scale: 0.95 }}
             onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 20 }))}
             className="control-button w-full"
           >
-            <ApperIcon name="ChevronUp" size={16} />
+            ↑
           </button>
           <button
             onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
+onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
             className="control-button w-full"
           >
-            <ApperIcon name="ChevronLeft" size={16} />
+            ←
           </button>
           <button
             onClick={() => setCamera(prev => ({ ...prev, x: 0, y: -20, zoom: 1 }))}
             className="control-button w-full text-xs"
           >
-            <ApperIcon name="Home" size={16} />
+            🏠
           </button>
           <button
             onClick={() => setCamera(prev => ({ ...prev, x: prev.x + 20 }))}
             className="control-button w-full"
           >
-            <ApperIcon name="ChevronRight" size={16} />
+            →
           </button>
           <button
             onClick={() => setCamera(prev => ({ ...prev, y: prev.y + 20 }))}
             className="control-button w-full"
           >
-            <ApperIcon name="ChevronDown" size={16} />
+            ↓
           </button>
         </div>
       </div>
@@ -1019,7 +1185,7 @@ whileTap={{ scale: 0.95 }}
           <div className="text-surface-400">• Arrow Panel: Move camera</div>
         </div>
       </div>
-    </div>
+</div>
   )
 }
 
