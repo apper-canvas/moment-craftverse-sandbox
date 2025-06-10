@@ -37,11 +37,11 @@ const BLOCK_TYPES = {
     texture: null,
     pattern: 'solid'
   },
-  dirt: { 
+dirt: { 
     color: '#92400E', 
     name: 'Dirt',
     texture: null,
-pattern: 'solid'
+    pattern: 'solid'
   },
   stone: { 
     color: '#6B7280', 
@@ -102,10 +102,10 @@ const MainFeature = () => {
         }
       }
     }
-    return initialWorld
+return initialWorld
   })
   
-const [player, setPlayer] = useState({
+  const [player, setPlayer] = useState({
     position: { x: 10, y: 4, z: 10 },
     inventory: {
       grass: 50,
@@ -147,7 +147,7 @@ const [player, setPlayer] = useState({
       particleEffects: 'high',
       viewDistance: 'far',
       shadows: true,
-      reflections: true,
+reflections: true,
       motionBlur: false,
       vSync: true
     }
@@ -166,9 +166,47 @@ const [player, setPlayer] = useState({
     rotation: 0
   })
 
+  // Mouse drag state
+  const [isDragging, setIsDragging] = useState(false)
+const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
   // Player position for mini-map
   const [playerPosition, setPlayerPosition] = useState({ x: 10, y: 10 })
-// Save graphics settings to localStorage
+
+  // Keyboard movement controls
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      const moveSpeed = 20
+      switch (e.key.toLowerCase()) {
+        case 'w':
+          setCamera(prev => ({ ...prev, y: prev.y - moveSpeed }))
+          break
+        case 's':
+          setCamera(prev => ({ ...prev, y: prev.y + moveSpeed }))
+          break
+        case 'a':
+          setCamera(prev => ({ ...prev, x: prev.x - moveSpeed }))
+          break
+        case 'd':
+          setCamera(prev => ({ ...prev, x: prev.x + moveSpeed }))
+          break
+        case 'q':
+          setCamera(prev => ({ ...prev, zoom: Math.max(0.5, prev.zoom - 0.1) }))
+          break
+        case 'e':
+          setCamera(prev => ({ ...prev, zoom: Math.min(2, prev.zoom + 0.1) }))
+          break
+        case 'r':
+          setCamera({ x: 0, y: 0, zoom: 1, rotation: 0 })
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [])
+
+  // Save graphics settings to localStorage
   useEffect(() => {
     localStorage.setItem('craftverse-graphics-settings', JSON.stringify(graphicsSettings))
     applyGraphicsSettings(graphicsSettings)
@@ -230,9 +268,9 @@ const [player, setPlayer] = useState({
         
         toast.success(`Mined ${BLOCK_TYPES[blockType]?.name || blockType}!`)
       }
-    } else {
+} else {
       // Place block
-if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
+      if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
         setWorld(prev => ({
           ...prev,
           [blockKey]: player.selectedSlot
@@ -240,7 +278,7 @@ if (!world[blockKey] && player.inventory[player.selectedSlot] > 0) {
         
         setPlayer(prev => ({
           ...prev,
-inventory: {
+          inventory: {
             ...prev.inventory,
             [prev.selectedSlot]: prev.inventory[prev.selectedSlot] - 1
           }
@@ -253,10 +291,10 @@ inventory: {
           uniqueBlockTypes: new Set([...prev.uniqueBlockTypes, player.selectedSlot])
         }))
         
-        toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
+toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
       } else if (player.inventory[player.selectedSlot] <= 0) {
         toast.warning(`No ${BLOCK_TYPES[player.selectedSlot]?.name} blocks left!`)
-}
+      }
     }
   }, [world, player.selectedSlot, player.inventory])
   
@@ -362,9 +400,9 @@ inventory: {
         scale: textureScale,
         rotation: textureRotation,
         blendMode: textureBlendMode
-      }
+}
       
-setWorld(prev => {
+      setWorld(prev => {
         const newWorld = { ...prev }
         newWorld[`${x},${y}`] = blockToPlace
         return newWorld
@@ -423,22 +461,22 @@ setWorld(prev => {
             className="absolute w-8 h-8 rounded transform rotate-45 opacity-20"
             style={{ 
               backgroundColor: '#000',
-              left: '2px',
+left: '2px',
               top: '8px',
               zIndex: -1
-}}
+            }}
           />
           
           {/* Main block */}
           <div 
             className="w-8 h-8 rounded border-2 flex items-center justify-center text-white font-bold text-xs transition-all duration-200"
-style={{ 
+            style={{ 
               backgroundColor: block.texture ? 'transparent' : block.color,
               background: block.texture ? block.texture.pattern : block.color,
               boxShadow: isHovered ? '0 0 15px rgba(255,255,255,0.5)' : `inset 0 0 0 1px rgba(255,255,255,0.2)`
             }}
           >
-{blockType.charAt(0).toUpperCase()}
+            {blockType.charAt(0).toUpperCase()}
           </div>
           {isHovered && (
             <div className="absolute inset-0 rounded border-2 border-white animate-pulse opacity-50" />
@@ -500,9 +538,9 @@ style={{
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+        className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -544,9 +582,9 @@ className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 
               {/* Tool Selection */}
               <div className="bg-surface-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4 text-white">Tools</h3>
-                <div className="grid grid-cols-2 gap-2">
+<div className="grid grid-cols-2 gap-2">
                   <button
-onClick={() => setActiveTool('brush')}
+                    onClick={() => setActiveTool('brush')}
                     className={`control-button ${activeTool === 'brush' ? 'bg-primary-600' : ''}`}
                   >
                     <Brush size={16} />
@@ -603,9 +641,9 @@ onClick={() => setActiveTool('brush')}
                   onChange={(e) => setCurrentTexture(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-3 py-2 bg-surface-700 border border-surface-600 rounded text-white mb-3"
                 />
-                <button
+<button
                   onClick={saveCustomTexture}
-className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white rounded font-medium"
+                  className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white rounded font-medium"
                 >
                   <Save size={16} className="inline mr-2" />
                   Save Texture
@@ -632,9 +670,9 @@ className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white r
         initial={{ opacity: 0, x: 300 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: 300 }}
-        className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
       >
-<div className="p-4">
+        <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Image size={20} className="text-primary-400" />
@@ -802,14 +840,35 @@ className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white r
     a.click()
     URL.revokeObjectURL(url)
     toast.success('World saved!')
+toast.success('World saved!')
   }
+
+  // Load world function
+  const loadWorld = useCallback((event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const worldData = JSON.parse(e.target.result)
+        if (worldData.world) setWorld(worldData.world)
+        if (worldData.player) setPlayer(worldData.player)
+        if (worldData.statistics) setStatistics(worldData.statistics)
+        toast.success('World loaded successfully!')
+      } catch (error) {
+        toast.error('Failed to load world file!')
+      }
+    }
+    reader.readAsText(file)
+  }, [])
+
   if (!isPlaying) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-primary-900 to-surface-900 relative overflow-hidden">
         {/* Animated background blocks */}
         <div className="absolute inset-0 overflow-hidden">
           {[...Array(20)].map((_, i) => (
-            <motion.div
               key={i}
               className="absolute w-16 h-16 opacity-10"
               style={{
@@ -855,9 +914,9 @@ className="w-full px-4 py-2 bg-secondary-600 hover:bg-secondary-700 text-white r
           </motion.p>
           
           <motion.button
-            onClick={startGame}
+onClick={startGame}
             className="px-12 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700 text-white text-xl font-semibold rounded-2xl transition-all duration-300 shadow-2xl hover:shadow-game hover:scale-105 flex items-center gap-3 mx-auto"
-whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.95 }}
           >
             <Play size={24} />
             Start Building
@@ -865,18 +924,33 @@ whileTap={{ scale: 0.95 }}
         </motion.div>
       </div>
     )
-  }
+}
   
-return (
+  return (
     <div className="w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui">
       {/* Game Canvas */}
       <div 
         ref={gameRef}
-        className="game-canvas relative"
+        className="game-canvas relative cursor-grab active:cursor-grabbing"
         onWheel={(e) => {
           const newZoom = Math.max(0.5, Math.min(2, camera.zoom + (e.deltaY > 0 ? -0.1 : 0.1)))
           setCamera(prev => ({ ...prev, zoom: newZoom }))
         }}
+        onMouseDown={(e) => {
+          setIsDragging(true)
+          setDragStart({ x: e.clientX - camera.x, y: e.clientY - camera.y })
+        }}
+        onMouseMove={(e) => {
+          if (isDragging) {
+            setCamera(prev => ({
+              ...prev,
+              x: e.clientX - dragStart.x,
+              y: e.clientY - dragStart.y
+            }))
+          }
+        }}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
       >
         {/* World Grid */}
         <div className="absolute inset-0 opacity-10">
@@ -902,11 +976,11 @@ return (
           }}
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
-        />
+/>
       </div>
       
       {/* HUD - Top Bar */}
-<div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
         {/* Game Title & Mode */}
         <div className="hud-panel">
           <div className="flex items-center gap-3">
@@ -919,7 +993,7 @@ return (
         </div>
         
         {/* Performance Monitor */}
-<div className="hud-panel">
+        <div className="hud-panel">
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
               <Monitor size={16} className="text-green-400" />
@@ -942,15 +1016,15 @@ return (
             >
               <Map size={16} />
             </button>
-            <button
+<button
               onClick={() => setIsPlaying(!isPlaying)}
               className="control-button flex items-center gap-2"
-          >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-            {isPlaying ? 'Pause' : 'Play'}
-          </button>
-          
-          <button
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+              {isPlaying ? 'Pause' : 'Play'}
+            </button>
+            
+            <button
             onClick={resetWorld}
             className="control-button flex items-center gap-2"
           >
@@ -992,9 +1066,9 @@ return (
           
           <button
             onClick={() => setShowGraphicsSettings(!showGraphicsSettings)}
-            className="control-button flex items-center gap-2"
+className="control-button flex items-center gap-2"
           >
-<Settings size={16} />
+            <Settings size={16} />
             Graphics
           </button>
           </div>
@@ -1017,7 +1091,16 @@ return (
             </div>
           </div>
         </div>
-      </div>
+</div>
+      
+      {/* Hidden file input for loading worlds */}
+      <input
+        type="file"
+        ref={loadWorldRef}
+        onChange={loadWorld}
+        accept=".json"
+        style={{ display: 'none' }}
+      />
       
       {/* Mini-Map Overlay */}
       <AnimatePresence>
@@ -1027,7 +1110,7 @@ return (
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, x: 50 }}
             transition={{ duration: 0.3 }}
-className="absolute top-24 right-4 z-50"
+            className="absolute top-80 right-4 z-50"
           >
             <div className="hud-panel p-2">
               <div className="flex items-center justify-between mb-2">
@@ -1077,10 +1160,11 @@ className="absolute top-24 right-4 z-50"
                   <span>You</span>
                 </div>
               </div>
-            </div>
-</motion.div>
+</div>
+          </motion.div>
         )}
       </AnimatePresence>
+      
       {/* Texture Designer Modal */}
       <AnimatePresence>
         {showTextureDesigner && renderTextureDesigner()}
@@ -1099,10 +1183,10 @@ className="absolute top-24 right-4 z-50"
               <motion.div
                 key={type}
                 className={`inventory-slot ${player.selectedSlot === type ? 'active' : ''}`}
-                onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
+onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
                 whileHover={{ scale: 1.1 }}
-whileTap={{ scale: 0.95 }}
->
+                whileTap={{ scale: 0.95 }}
+              >
                 <div 
                   className="block-preview"
                   style={{ 
@@ -1118,9 +1202,8 @@ whileTap={{ scale: 0.95 }}
               </motion.div>
             ))}
           </div>
-          
-          {/* Current tool info */}
-<div className="text-center text-sm text-surface-300">
+{/* Current tool info */}
+          <div className="text-center text-sm text-surface-300">
             <div className="flex items-center justify-center gap-2">
               <span>{isBuilding ? 'Building' : 'Mining'} Mode</span>
               <span className="text-surface-500">|</span>
@@ -1130,53 +1213,80 @@ whileTap={{ scale: 0.95 }}
               <span>{BLOCK_TYPES[player.selectedSlot]?.name}</span>
             </div>
           </div>
-        </div>
+</div>
       </div>
       
       {/* Camera Controls - Right Side */}
-      <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-50">
+      <div className="absolute right-4 bottom-32 z-40">
         <div className="hud-panel space-y-2">
+          <div className="text-xs text-surface-300 text-center mb-2 font-semibold">Camera</div>
           <button
-            onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 20 }))}
-            className="control-button w-full"
+            onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 30 }))}
+            className="control-button w-12 h-8 text-lg"
+            title="Move Up (W)"
           >
             ↑
           </button>
-<button
-            onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 20 }))}
-            className="control-button w-full"
-          >
-            ←
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 30 }))}
+              className="control-button w-8 h-8"
+              title="Move Left (A)"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => setCamera({ x: 0, y: 0, zoom: 1, rotation: 0 })}
+              className="control-button w-8 h-8 text-xs"
+              title="Reset (R)"
+            >
+              🏠
+            </button>
+            <button
+              onClick={() => setCamera(prev => ({ ...prev, x: prev.x + 30 }))}
+              className="control-button w-8 h-8"
+              title="Move Right (D)"
+            >
+              →
+            </button>
+          </div>
           <button
-            onClick={() => setCamera(prev => ({ ...prev, x: 0, y: -20, zoom: 1 }))}
-            className="control-button w-full text-xs"
-          >
-            🏠
-          </button>
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, x: prev.x + 20 }))}
-            className="control-button w-full"
-          >
-            →
-          </button>
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, y: prev.y + 20 }))}
-            className="control-button w-full"
+            onClick={() => setCamera(prev => ({ ...prev, y: prev.y + 30 }))}
+            className="control-button w-12 h-8 text-lg"
+            title="Move Down (S)"
           >
             ↓
           </button>
-        </div>
+          <div className="flex gap-1 mt-2">
+            <button
+              onClick={() => setCamera(prev => ({ ...prev, zoom: Math.max(0.5, prev.zoom - 0.1) }))}
+              className="control-button w-8 h-6 text-xs"
+              title="Zoom Out (Q)"
+            >
+              -
+            </button>
+            <button
+              onClick={() => setCamera(prev => ({ ...prev, zoom: Math.min(2, prev.zoom + 0.1) }))}
+              className="control-button w-8 h-6 text-xs"
+              title="Zoom In (E)"
+            >
+              +
+            </button>
+          </div>
+</div>
       </div>
       
       {/* Instructions - Bottom Left */}
-      <div className="absolute bottom-4 left-4 z-50">
+      <div className="absolute bottom-4 left-4 z-40">
         <div className="hud-panel text-xs space-y-1 max-w-xs">
           <div className="text-surface-300 font-semibold mb-2">Controls:</div>
           <div className="text-surface-400">• Left Click: Place block</div>
           <div className="text-surface-400">• Right Click: Mine block</div>
-          <div className="text-surface-400">• Mouse Wheel: Zoom</div>
-          <div className="text-surface-400">• Arrow Panel: Move camera</div>
+          <div className="text-surface-400">• Mouse Wheel: Zoom in/out</div>
+          <div className="text-surface-400">• Mouse Drag: Pan camera</div>
+          <div className="text-surface-400">• WASD: Move camera</div>
+          <div className="text-surface-400">• Q/E: Zoom out/in</div>
+          <div className="text-surface-400">• R: Reset camera</div>
 </div>
       </div>
     </div>
