@@ -836,7 +836,7 @@ setSceneEditorMode(!sceneEditorMode)
     toast.success('Scene saved!')
   }
   
-  const loadScene = useCallback((event) => {
+const loadScene = useCallback((event) => {
     const file = event.target.files[0]
     if (!file) return
     
@@ -886,10 +886,16 @@ setSceneEditorMode(!sceneEditorMode)
         }
         
         toast.success('Scene loaded successfully!')
-console.error('Scene load error:', error)
+      } catch (error) {
+        console.error('Scene load error:', error)
         toast.error('Failed to load scene file!')
       }
     }
+    
+    reader.onerror = () => {
+      toast.error('Failed to read scene file!')
+    }
+    
     reader.readAsText(file)
   }, [sceneObjects])
 
@@ -2458,11 +2464,12 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
                     Selected: {selectedObject.userData.type || 'Object'}
                   </div>
                 )}
-              </div>
+</div>
             </div>
           </div>
         </div>
       )}
+    </div>
   )
 }
 
