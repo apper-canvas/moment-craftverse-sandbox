@@ -3,16 +3,20 @@ import * as THREE from 'three'
 class SceneManager {
   constructor() {
     this.scene = null
-    this.renderer = null
+this.renderer = null
     this.camera = null
     this.lights = {}
     this.ambientLight = null
     this.directionalLight = null
     this.isInitialized = false
+    this.resizeObserver = null
+    this.canvas = null
   }
 
-  init(canvas, width = 800, height = 600) {
+init(canvas, width = 800, height = 600) {
     try {
+      this.canvas = canvas
+      
       // Initialize scene
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(0x87CEEB) // Sky blue background
@@ -37,7 +41,11 @@ class SceneManager {
       this.setupLighting()
 
       // Add basic ground plane
+// Add basic ground plane
       this.addGroundPlane()
+
+      // Setup canvas resize observer
+      this.setupResizeObserver()
 
       this.isInitialized = true
       console.log('3D Scene initialized successfully')
@@ -45,7 +53,7 @@ class SceneManager {
       return true
     } catch (error) {
       console.error('Failed to initialize 3D scene:', error)
-      return false
+return false
     }
   }
 
@@ -144,9 +152,9 @@ class SceneManager {
         this.directionalLight.shadow.mapSize.setScalar(4096)
         break
     }
-  }
+}
 
-render() {
+  render() {
     if (this.isInitialized && this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera)
     }
@@ -185,7 +193,23 @@ render() {
       object.material.emissive = new THREE.Color(0x000000)
       object.material.emissiveIntensity = 0
       object.material.needsUpdate = true
+}
+  }
+
+  setupResizeObserver() {
+    if (!this.canvas || !window.ResizeObserver) {
+      console.warn('ResizeObserver not supported, canvas auto-resize disabled')
+      return
     }
+
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        this.resize(width, height)
+      }
+    })
+
+    this.resizeObserver.observe(this.canvas.parentElement || this.canvas)
   }
 
   resize(width, height) {
@@ -193,10 +217,17 @@ render() {
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(width, height)
-    }
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+}
   }
 
   dispose() {
+    // Clean up resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect()
+      this.resizeObserver = null
+    }
+
     if (this.renderer) {
       this.renderer.dispose()
     }
@@ -217,6 +248,7 @@ render() {
       })
     }
     
+    this.canvas = null
     this.isInitialized = false
   }
 
