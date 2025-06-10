@@ -26,8 +26,17 @@ import {
   Sparkles,
   Image,
   Wind,
-  Eye as ViewIcon
+  Eye as ViewIcon,
+  Box,
+  RotateCw as Rotate3D,
+  Maximize
 } from 'lucide-react'
+
+// Import 3D services
+import SceneManager from '@/services/3d/scene'
+import CameraController from '@/services/3d/camera'
+import ModelManager from '@/services/3d/models'
+import PerformanceMonitor from '@/services/3d/performance'
 
 // Block types with enhanced properties
 const BLOCK_TYPES = {
@@ -76,8 +85,15 @@ const WORLD_SIZE = { width: 20, height: 10, depth: 20 }
 const MainFeature = () => {
   // Refs
   const gameRef = useRef(null)
+  const canvas3DRef = useRef(null)
   const loadWorldRef = useRef(null)
   
+  // 3D Engine refs
+  const sceneManagerRef = useRef(null)
+  const cameraControllerRef = useRef(null)
+  const modelManagerRef = useRef(null)
+  const performanceMonitorRef = useRef(null)
+  const animationFrameRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isBuilding, setIsBuilding] = useState(true)
   const [hoveredBlock, setHoveredBlock] = useState(null)
@@ -133,8 +149,19 @@ return initialWorld
   const [textureLibrary, setTextureLibrary] = useState([])
   const [textureScale, setTextureScale] = useState(1)
   const [textureRotation, setTextureRotation] = useState(0)
-  const [textureBlendMode, setTextureBlendMode] = useState('overlay')
+const [textureBlendMode, setTextureBlendMode] = useState('overlay')
   const [showMiniMap, setShowMiniMap] = useState(true)
+  
+  // 3D Mode state
+  const [is3DMode, setIs3DMode] = useState(false)
+  const [show3DControls, setShow3DControls] = useState(false)
+  const [threeJSLoaded, setThreeJSLoaded] = useState(false)
+  const [render3DStats, setRender3DStats] = useState({
+    fps: 0,
+    drawCalls: 0,
+    triangles: 0
+  })
+  
   // Graphics settings state
   const [showGraphicsSettings, setShowGraphicsSettings] = useState(false)
   const [graphicsSettings, setGraphicsSettings] = useState(() => {
@@ -147,12 +174,12 @@ return initialWorld
       particleEffects: 'high',
       viewDistance: 'far',
       shadows: true,
-reflections: true,
+      reflections: true,
       motionBlur: false,
-      vSync: true
+      vSync: true,
+      renderMode: '2d' // New: 2d or 3d
     }
   })
-
   // FPS monitoring
   const [fps, setFps] = useState(60)
   const frameCountRef = useRef(0)
@@ -205,13 +232,78 @@ const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [])
+// Initialize 3D engine
+  useEffect(() => {
+    const init3DEngine = async () => {
+      if (!is3DMode || !canvas3DRef.current) return
+      
+      try {
+        // Initialize Scene Manager
+        sceneManagerRef.current = new SceneManager()
+        const initSuccess = sceneManagerRef.current.init(
+          canvas3DRef.current,
+          canvas3DRef.current.clientWidth,
+          canvas3DRef.current.clientHeight
+        )
+        
+        if (!initSuccess) {
+          toast.error('Failed to initialize 3D rendering engine')
+          setIs3DMode(false)
+          return
+        }
+        
+        // Initialize Model Manager
+        modelManagerRef.current = new ModelManager()
+        modelManagerRef.current.init()
+        
+        // Initialize Camera Controller
+        cameraControllerRef.current = new CameraController(
+          sceneManagerRef.current.camera,
+          canvas3DRef.current
+        )
+        
+        // Initialize Performance Monitor
+        performanceMonitorRef.current = new PerformanceMonitor()
+        performanceMonitorRef.current.start()
+        performanceMonitorRef.current.addCallback((metrics) => {
+          setRender3DStats(prev => ({
+            ...prev,
+            fps: metrics.fps,
+            drawCalls: metrics.drawCalls,
+            triangles: metrics.triangles
+          }))
+        })
+        
+        // Load initial 3D world from 2D world data
+        loadWorldTo3D()
+        
+        // Start render loop
+        startRenderLoop()
+        
+        setThreeJSLoaded(true)
+        toast.success('3D rendering engine initialized successfully!')
+        
+      } catch (error) {
+        console.error('3D Engine initialization error:', error)
+        toast.error('Failed to initialize 3D engine')
+        setIs3DMode(false)
+      }
+    }
+    
+    if (is3DMode) {
+      init3DEngine()
+    } else {
+      cleanup3DEngine()
+    }
+    
+    return () => cleanup3DEngine()
+  }, [is3DMode])
 
   // Save graphics settings to localStorage
   useEffect(() => {
     localStorage.setItem('craftverse-graphics-settings', JSON.stringify(graphicsSettings))
     applyGraphicsSettings(graphicsSettings)
   }, [graphicsSettings])
-
   // Initialize default textures
   useEffect(() => {
     const defaultTextures = [
@@ -354,6 +446,84 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
     toast.success(`Applied ${texture.name} to ${BLOCK_TYPES[blockType]?.name}`)
   }, [])
 
+// 3D Engine functions
+  const startRenderLoop = () => {
+    const animate = () => {
+      if (sceneManagerRef.current && performanceMonitorRef.current) {
+        // Update performance monitor
+        performanceMonitorRef.current.update(sceneManagerRef.current.renderer)
+        
+        // Render the scene
+        sceneManagerRef.current.render()
+        
+        // Continue animation loop
+        animationFrameRef.current = requestAnimationFrame(animate)
+      }
+    }
+    animationFrameRef.current = requestAnimationFrame(animate)
+  }
+
+  const cleanup3DEngine = () => {
+    // Stop animation loop
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+    
+    // Cleanup 3D resources
+    if (performanceMonitorRef.current) {
+      performanceMonitorRef.current.dispose()
+      performanceMonitorRef.current = null
+    }
+    
+    if (cameraControllerRef.current) {
+      cameraControllerRef.current.dispose()
+      cameraControllerRef.current = null
+    }
+    
+    if (modelManagerRef.current) {
+      modelManagerRef.current.dispose()
+      modelManagerRef.current = null
+    }
+    
+    if (sceneManagerRef.current) {
+      sceneManagerRef.current.dispose()
+      sceneManagerRef.current = null
+    }
+    
+    setThreeJSLoaded(false)
+  }
+
+  const loadWorldTo3D = () => {
+    if (!sceneManagerRef.current || !modelManagerRef.current) return
+    
+    // Convert 2D world data to 3D blocks
+    Object.entries(world).forEach(([key, blockType]) => {
+      const [x, y, z] = key.split(',').map(Number)
+      const block = modelManagerRef.current.createBlock(blockType, { x, y, z })
+      if (block) {
+        sceneManagerRef.current.scene.add(block)
+      }
+    })
+    
+    // Add some placeholder models for demonstration
+    const tree = modelManagerRef.current.createPlaceholderModel('tree', { x: 5, y: 0, z: 5 })
+    const house = modelManagerRef.current.createPlaceholderModel('house', { x: -5, y: 0, z: -5 })
+    const tower = modelManagerRef.current.createPlaceholderModel('tower', { x: 10, y: 0, z: -10 })
+    
+    if (tree) sceneManagerRef.current.scene.add(tree)
+    if (house) sceneManagerRef.current.scene.add(house)
+    if (tower) sceneManagerRef.current.scene.add(tower)
+  }
+
+  const toggle3DMode = () => {
+    setIs3DMode(!is3DMode)
+    setGraphicsSettings(prev => ({
+      ...prev,
+      renderMode: !is3DMode ? '3d' : '2d'
+    }))
+  }
+
   // Apply graphics settings to the game
   const applyGraphicsSettings = (settings) => {
     const canvas = document.querySelector('.game-canvas')
@@ -369,8 +539,18 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
       // Apply other visual effects through CSS classes
       canvas.className = `game-canvas ${settings.lightingQuality}-lighting ${settings.textureQuality}-textures`
     }
+    
+    // Apply 3D-specific settings
+    if (is3DMode && sceneManagerRef.current) {
+      sceneManagerRef.current.updateLighting(settings.lightingQuality)
+      
+      if (sceneManagerRef.current.renderer) {
+        const renderer = sceneManagerRef.current.renderer
+        renderer.setPixelRatio(settings.antiAliasing === 'none' ? 1 : Math.min(window.devicePixelRatio, 2))
+        renderer.shadowMap.enabled = settings.shadows
+      }
+    }
   }
-
   // Update FPS counter
   const updateFPS = useCallback(() => {
     frameCountRef.current++
@@ -925,34 +1105,36 @@ onClick={startGame}
       </div>
     )
 }
-  
-  return (
+return (
     <div className="w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui">
-      {/* Game Canvas */}
-      <div 
-        ref={gameRef}
-        className="game-canvas relative cursor-grab active:cursor-grabbing"
-        onWheel={(e) => {
-          const newZoom = Math.max(0.5, Math.min(2, camera.zoom + (e.deltaY > 0 ? -0.1 : 0.1)))
-          setCamera(prev => ({ ...prev, zoom: newZoom }))
-        }}
-        onMouseDown={(e) => {
-          setIsDragging(true)
-          setDragStart({ x: e.clientX - camera.x, y: e.clientY - camera.y })
-        }}
-        onMouseMove={(e) => {
-          if (isDragging) {
-            setCamera(prev => ({
-              ...prev,
-              x: e.clientX - dragStart.x,
-              y: e.clientY - dragStart.y
-            }))
-          }
-        }}
-        onMouseUp={() => setIsDragging(false)}
-        onMouseLeave={() => setIsDragging(false)}
-      >
-        {/* World Grid */}
+      {/* Game Canvas Container */}
+      <div className="absolute inset-0">
+        {/* 2D Canvas */}
+        {!is3DMode && (
+          <div 
+            ref={gameRef}
+            className="game-canvas relative cursor-grab active:cursor-grabbing w-full h-full"
+            onWheel={(e) => {
+              const newZoom = Math.max(0.5, Math.min(2, camera.zoom + (e.deltaY > 0 ? -0.1 : 0.1)))
+              setCamera(prev => ({ ...prev, zoom: newZoom }))
+            }}
+            onMouseDown={(e) => {
+              setIsDragging(true)
+              setDragStart({ x: e.clientX - camera.x, y: e.clientY - camera.y })
+            }}
+            onMouseMove={(e) => {
+              if (isDragging) {
+                setCamera(prev => ({
+                  ...prev,
+                  x: e.clientX - dragStart.x,
+                  y: e.clientY - dragStart.y
+                }))
+              }
+            }}
+            onMouseUp={() => setIsDragging(false)}
+            onMouseLeave={() => setIsDragging(false)}
+          >
+            {/* World Grid */}
         <div className="absolute inset-0 opacity-10">
           <div className="grid grid-cols-20 gap-1 h-full w-full">
             {[...Array(400)].map((_, i) => (
@@ -977,8 +1159,93 @@ onClick={startGame}
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
 />
+/>
+          </div>
+        )}
+        
+        {/* 3D Canvas */}
+        {is3DMode && (
+          <div className="w-full h-full relative">
+            <canvas
+              ref={canvas3DRef}
+              className="w-full h-full cursor-grab active:cursor-grabbing"
+              style={{ display: 'block' }}
+            />
+            
+            {/* 3D Loading Overlay */}
+            {!threeJSLoaded && (
+              <div className="absolute inset-0 bg-surface-900 bg-opacity-75 flex items-center justify-center z-30">
+                <div className="text-center">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"
+                  />
+                  <p className="text-white text-lg">Initializing 3D Engine...</p>
+                </div>
+              </div>
+            )}
+            
+            {/* 3D Performance Overlay */}
+            {threeJSLoaded && show3DControls && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute top-4 left-4 hud-panel z-40"
+              >
+                <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                  <Box size={16} className="text-primary-400" />
+                  3D Performance
+                </h3>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-surface-300">FPS:</span>
+                    <span className={render3DStats.fps >= 30 ? 'text-green-400' : 'text-red-400'}>
+                      {render3DStats.fps}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-surface-300">Draw Calls:</span>
+                    <span className="text-blue-400">{render3DStats.drawCalls}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-surface-300">Triangles:</span>
+                    <span className="text-purple-400">{render3DStats.triangles.toLocaleString()}</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        )}
       </div>
       
+      {/* Mode Toggle Button */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
+        <motion.button
+          onClick={toggle3DMode}
+          className={`px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all duration-300 flex items-center gap-3 ${
+            is3DMode 
+              ? 'bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700' 
+              : 'bg-gradient-to-r from-surface-700 to-surface-800 hover:from-surface-600 hover:to-surface-700'
+          }`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          {is3DMode ? (
+            <>
+              <Box size={20} />
+              <span>3D Mode</span>
+              <div className="text-xs bg-green-500 px-2 py-1 rounded-full">ACTIVE</div>
+            </>
+          ) : (
+            <>
+              <Square size={20} />
+              <span>2D Mode</span>
+              <div className="text-xs bg-surface-500 px-2 py-1 rounded-full">ACTIVE</div>
+            </>
+          )}
+        </motion.button>
+      </div>
       {/* HUD - Top Bar */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
         {/* Game Title & Mode */}
@@ -991,23 +1258,29 @@ onClick={startGame}
             </span>
           </div>
         </div>
-        
-        {/* Performance Monitor */}
+{/* Performance Monitor */}
         <div className="hud-panel">
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
               <Monitor size={16} className="text-green-400" />
-              <span>FPS: {fps}</span>
+              <span>FPS: {is3DMode ? render3DStats.fps : fps}</span>
             </div>
             <div className="flex items-center gap-2">
               <Square size={16} className="text-blue-400" />
-              <span>Chunks: {performance.chunks}</span>
+              <span>{is3DMode ? 'Triangles' : 'Chunks'}: {is3DMode ? render3DStats.triangles : performance.chunks}</span>
             </div>
+            {is3DMode && (
+              <div className="flex items-center gap-2">
+                <Box size={16} className="text-purple-400" />
+                <span>Calls: {render3DStats.drawCalls}</span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Controls */}
-        <div className="hud-panel">
+        {/* Controls */}
+<div className="hud-panel">
           <div className="flex gap-2">
             <button
               onClick={() => setShowMiniMap(!showMiniMap)}
@@ -1016,7 +1289,8 @@ onClick={startGame}
             >
               <Map size={16} />
             </button>
-<button
+            
+            <button
               onClick={() => setIsPlaying(!isPlaying)}
               className="control-button flex items-center gap-2"
             >
@@ -1025,52 +1299,56 @@ onClick={startGame}
             </button>
             
             <button
-            onClick={resetWorld}
-            className="control-button flex items-center gap-2"
-          >
-            <RotateCcw size={16} />
-            Reset
-          </button>
+              onClick={resetWorld}
+              className="control-button flex items-center gap-2"
+            >
+              <RotateCcw size={16} />
+              Reset
+            </button>
           
-          <button
-            onClick={saveWorld}
-            className="control-button flex items-center gap-2"
-          >
-            <Save size={16} />
-            Save
-          </button>
+            <button
+              onClick={saveWorld}
+              className="control-button flex items-center gap-2"
+            >
+              <Save size={16} />
+              Save
+            </button>
           
-          <button
-            onClick={() => loadWorldRef.current?.click()}
-            className="control-button flex items-center gap-2"
-          >
-            <Upload size={16} />
-            Load
-          </button>
+            <button
+              onClick={() => loadWorldRef.current?.click()}
+              className="control-button flex items-center gap-2"
+            >
+              <Upload size={16} />
+              Load
+            </button>
           
-          <button
-            onClick={() => setShowMiniMap(!showMiniMap)}
-            className="control-button flex items-center gap-2"
-          >
-            <Map size={16} />
-            {showMiniMap ? 'Hide Map' : 'Show Map'}
-          </button>
+            {/* 3D Controls Toggle */}
+            {is3DMode && (
+              <button
+                onClick={() => setShow3DControls(!show3DControls)}
+                className="control-button flex items-center gap-2"
+                title="Toggle 3D Controls"
+              >
+                <Rotate3D size={16} />
+                3D Stats
+              </button>
+            )}
           
-          <button
-            onClick={() => setShowTextureDesigner(!showTextureDesigner)}
-            className="control-button flex items-center gap-2"
-          >
-            <Palette size={16} />
-            Textures
-          </button>
+            <button
+              onClick={() => setShowTextureDesigner(!showTextureDesigner)}
+              className="control-button flex items-center gap-2"
+            >
+              <Palette size={16} />
+              Textures
+            </button>
           
-          <button
-            onClick={() => setShowGraphicsSettings(!showGraphicsSettings)}
-className="control-button flex items-center gap-2"
-          >
-            <Settings size={16} />
-            Graphics
-          </button>
+            <button
+              onClick={() => setShowGraphicsSettings(!showGraphicsSettings)}
+              className="control-button flex items-center gap-2"
+            >
+              <Settings size={16} />
+              Graphics
+            </button>
           </div>
         </div>
         
@@ -1103,8 +1381,9 @@ className="control-button flex items-center gap-2"
       />
       
       {/* Mini-Map Overlay */}
+{/* Mini-Map Overlay - Only show in 2D mode */}
       <AnimatePresence>
-        {showMiniMap && (
+        {showMiniMap && !is3DMode && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8, x: 50 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -1116,7 +1395,7 @@ className="control-button flex items-center gap-2"
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-surface-300 flex items-center gap-1">
                   <Map size={14} />
-                  Mini-Map
+                  Mini-Map (2D)
                 </h3>
                 <button
                   onClick={() => setShowMiniMap(false)}
@@ -1160,11 +1439,161 @@ className="control-button flex items-center gap-2"
                   <span>You</span>
                 </div>
               </div>
-</div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
       
+      {/* Graphics Settings Modal */}
+      <AnimatePresence>
+        {showGraphicsSettings && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute inset-4 bg-surface-900 rounded-xl border border-surface-700 z-50 overflow-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <Settings size={24} className="text-primary-400" />
+                  Graphics Settings
+                </h2>
+                <button
+                  onClick={() => setShowGraphicsSettings(false)}
+                  className="control-button hover:bg-red-600"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Render Mode */}
+                <div className="bg-surface-800 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-4 text-white">Render Mode</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIs3DMode(false)}
+                      className={`w-full p-3 rounded-lg border text-left transition-all ${
+                        !is3DMode 
+                          ? 'border-primary-500 bg-primary-900 text-white' 
+                          : 'border-surface-600 bg-surface-700 text-surface-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Square size={20} />
+                        <div>
+                          <div className="font-medium">2D Isometric</div>
+                          <div className="text-sm opacity-75">Classic block-building view</div>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => setIs3DMode(true)}
+                      className={`w-full p-3 rounded-lg border text-left transition-all ${
+                        is3DMode 
+                          ? 'border-primary-500 bg-primary-900 text-white' 
+                          : 'border-surface-600 bg-surface-700 text-surface-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Box size={20} />
+                        <div>
+                          <div className="font-medium">3D Perspective</div>
+                          <div className="text-sm opacity-75">Full 3D rendering with camera controls</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Quality Settings */}
+                <div className="bg-surface-800 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-4 text-white">Quality Settings</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-surface-300 mb-2">
+                        Lighting Quality
+                      </label>
+                      <select
+                        value={graphicsSettings.lightingQuality}
+                        onChange={(e) => setGraphicsSettings(prev => ({ ...prev, lightingQuality: e.target.value }))}
+                        className="w-full px-3 py-2 bg-surface-700 border border-surface-600 rounded text-white"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="ultra">Ultra</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-surface-300 mb-2">
+                        Anti-Aliasing
+                      </label>
+                      <select
+                        value={graphicsSettings.antiAliasing}
+                        onChange={(e) => setGraphicsSettings(prev => ({ ...prev, antiAliasing: e.target.value }))}
+                        className="w-full px-3 py-2 bg-surface-700 border border-surface-600 rounded text-white"
+                      >
+                        <option value="none">None</option>
+                        <option value="fxaa">FXAA</option>
+                        <option value="msaa">MSAA</option>
+                      </select>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-surface-300">
+                        Shadows
+                      </label>
+                      <button
+                        onClick={() => setGraphicsSettings(prev => ({ ...prev, shadows: !prev.shadows }))}
+                        className={`w-12 h-6 rounded-full transition-colors ${
+                          graphicsSettings.shadows ? 'bg-primary-600' : 'bg-surface-600'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                          graphicsSettings.shadows ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-surface-300">
+                        V-Sync
+                      </label>
+                      <button
+                        onClick={() => setGraphicsSettings(prev => ({ ...prev, vSync: !prev.vSync }))}
+                        className={`w-12 h-6 rounded-full transition-colors ${
+                          graphicsSettings.vSync ? 'bg-primary-600' : 'bg-surface-600'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                          graphicsSettings.vSync ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Apply Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => {
+                    applyGraphicsSettings(graphicsSettings)
+                    toast.success('Graphics settings applied!')
+                  }}
+                  className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium"
+                >
+                  Apply Settings
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Texture Designer Modal */}
       <AnimatePresence>
         {showTextureDesigner && renderTextureDesigner()}
@@ -1216,78 +1645,114 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
 </div>
       </div>
       
-      {/* Camera Controls - Right Side */}
-      <div className="absolute right-4 bottom-32 z-40">
-        <div className="hud-panel space-y-2">
-          <div className="text-xs text-surface-300 text-center mb-2 font-semibold">Camera</div>
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 30 }))}
-            className="control-button w-12 h-8 text-lg"
-            title="Move Up (W)"
-          >
-            ↑
-          </button>
-          <div className="flex gap-1">
+{/* Camera Controls - Right Side (2D Mode Only) */}
+      {!is3DMode && (
+        <div className="absolute right-4 bottom-32 z-40">
+          <div className="hud-panel space-y-2">
+            <div className="text-xs text-surface-300 text-center mb-2 font-semibold">2D Camera</div>
             <button
-              onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 30 }))}
-              className="control-button w-8 h-8"
-              title="Move Left (A)"
+              onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 30 }))}
+              className="control-button w-12 h-8 text-lg"
+              title="Move Up (W)"
             >
-              ←
+              ↑
             </button>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, x: prev.x - 30 }))}
+                className="control-button w-8 h-8"
+                title="Move Left (A)"
+              >
+                ←
+              </button>
+              <button
+                onClick={() => setCamera({ x: 0, y: 0, zoom: 1, rotation: 0 })}
+                className="control-button w-8 h-8 text-xs"
+                title="Reset (R)"
+              >
+                🏠
+              </button>
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, x: prev.x + 30 }))}
+                className="control-button w-8 h-8"
+                title="Move Right (D)"
+              >
+                →
+              </button>
+            </div>
             <button
-              onClick={() => setCamera({ x: 0, y: 0, zoom: 1, rotation: 0 })}
-              className="control-button w-8 h-8 text-xs"
-              title="Reset (R)"
+              onClick={() => setCamera(prev => ({ ...prev, y: prev.y + 30 }))}
+              className="control-button w-12 h-8 text-lg"
+              title="Move Down (S)"
             >
-              🏠
+              ↓
             </button>
-            <button
-              onClick={() => setCamera(prev => ({ ...prev, x: prev.x + 30 }))}
-              className="control-button w-8 h-8"
-              title="Move Right (D)"
-            >
-              →
-            </button>
+            <div className="flex gap-1 mt-2">
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, zoom: Math.max(0.5, prev.zoom - 0.1) }))}
+                className="control-button w-8 h-6 text-xs"
+                title="Zoom Out (Q)"
+              >
+                -
+              </button>
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, zoom: Math.min(2, prev.zoom + 0.1) }))}
+                className="control-button w-8 h-6 text-xs"
+                title="Zoom In (E)"
+              >
+                +
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, y: prev.y + 30 }))}
-            className="control-button w-12 h-8 text-lg"
-            title="Move Down (S)"
-          >
-            ↓
-          </button>
-          <div className="flex gap-1 mt-2">
-            <button
-              onClick={() => setCamera(prev => ({ ...prev, zoom: Math.max(0.5, prev.zoom - 0.1) }))}
-              className="control-button w-8 h-6 text-xs"
-              title="Zoom Out (Q)"
-            >
-              -
-            </button>
-            <button
-              onClick={() => setCamera(prev => ({ ...prev, zoom: Math.min(2, prev.zoom + 0.1) }))}
-              className="control-button w-8 h-6 text-xs"
-              title="Zoom In (E)"
-            >
-              +
-            </button>
-          </div>
-</div>
-      </div>
+        </div>
+      )}
       
-      {/* Instructions - Bottom Left */}
+      {/* 3D Camera Instructions */}
+      {is3DMode && (
+        <div className="absolute right-4 bottom-32 z-40">
+          <div className="hud-panel space-y-2 max-w-xs">
+            <div className="text-xs text-surface-300 text-center mb-2 font-semibold">3D Controls</div>
+            <div className="text-xs text-surface-400 space-y-1">
+              <div>• Drag: Orbit camera</div>
+              <div>• Scroll: Zoom</div>
+              <div>• Right-click + Drag: Pan</div>
+              <div>• WASD: Move target</div>
+              <div>• Q/E: Move up/down</div>
+              <div>• R: Reset camera</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+{/* Instructions - Bottom Left */}
       <div className="absolute bottom-4 left-4 z-40">
         <div className="hud-panel text-xs space-y-1 max-w-xs">
-          <div className="text-surface-300 font-semibold mb-2">Controls:</div>
-          <div className="text-surface-400">• Left Click: Place block</div>
-          <div className="text-surface-400">• Right Click: Mine block</div>
-          <div className="text-surface-400">• Mouse Wheel: Zoom in/out</div>
-          <div className="text-surface-400">• Mouse Drag: Pan camera</div>
-          <div className="text-surface-400">• WASD: Move camera</div>
-          <div className="text-surface-400">• Q/E: Zoom out/in</div>
-          <div className="text-surface-400">• R: Reset camera</div>
-</div>
+          <div className="text-surface-300 font-semibold mb-2 flex items-center gap-2">
+            {is3DMode ? <Box size={14} /> : <Square size={14} />}
+            {is3DMode ? '3D' : '2D'} Controls:
+          </div>
+          {!is3DMode ? (
+            <>
+              <div className="text-surface-400">• Left Click: Place block</div>
+              <div className="text-surface-400">• Right Click: Mine block</div>
+              <div className="text-surface-400">• Mouse Wheel: Zoom in/out</div>
+              <div className="text-surface-400">• Mouse Drag: Pan camera</div>
+              <div className="text-surface-400">• WASD: Move camera</div>
+              <div className="text-surface-400">• Q/E: Zoom out/in</div>
+              <div className="text-surface-400">• R: Reset camera</div>
+            </>
+          ) : (
+            <>
+              <div className="text-surface-400">• Left Drag: Orbit camera</div>
+              <div className="text-surface-400">• Right/Middle Drag: Pan</div>
+              <div className="text-surface-400">• Mouse Wheel: Zoom</div>
+              <div className="text-surface-400">• WASD: Move target</div>
+              <div className="text-surface-400">• Q/E: Up/Down movement</div>
+              <div className="text-surface-400">• R: Reset camera</div>
+              <div className="text-purple-400 mt-2">• Click mode toggle for controls</div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
