@@ -29,8 +29,10 @@ import {
   Eye as ViewIcon,
   Box,
   RotateCw as Rotate3D,
-  Maximize
 } from 'lucide-react'
+
+// Import Three.js for 3D functionality
+import * as THREE from 'three'
 
 // Import 3D services
 import SceneManager from '@/services/3d/scene'
@@ -884,24 +886,12 @@ setSceneEditorMode(!sceneEditorMode)
         }
         
         toast.success('Scene loaded successfully!')
-      } catch (error) {
-        console.error('Scene load error:', error)
+console.error('Scene load error:', error)
         toast.error('Failed to load scene file!')
       }
     }
     reader.readAsText(file)
   }, [sceneObjects])
-
-  const toggle3DMode = () => {
-    setIs3DMode(!is3DMode)
-    setGraphicsSettings(prev => ({
-      ...prev,
-      renderMode: !is3DMode ? '3d' : '2d'
-    }))
-    
-    // Clear selection when switching modes
-    clearSelection()
-  }
 
   // Apply graphics settings to the game
   const applyGraphicsSettings = (settings) => {
@@ -919,7 +909,17 @@ setSceneEditorMode(!sceneEditorMode)
       canvas.className = `game-canvas ${settings.lightingQuality}-lighting ${settings.textureQuality}-textures`
     }
     
-    // Apply 3D-specific settings
+    // Apply 3D-specific settings if in 3D mode
+    if (is3DMode && sceneManagerRef.current) {
+      // Apply 3D quality settings to renderer
+      const renderer = sceneManagerRef.current.renderer
+      if (renderer) {
+        renderer.shadowMap.enabled = settings.shadows
+        renderer.antialias = settings.antiAliasing !== 'none'
+      }
+    }
+  }
+
   // Update FPS counter
   const updateFPS = useCallback(() => {
     frameCountRef.current++
@@ -1552,10 +1552,9 @@ return (
             top: `${(player.position.x + player.position.z) * 15 - player.position.y * 35 + camera.y + 296}px`,
             transform: `scale(${camera.zoom})`,
           }}
-          animate={{ scale: [1, 1.2, 1] }}
+animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
-/>
-/>
+        />
           </div>
         )}
         
