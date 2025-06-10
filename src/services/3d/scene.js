@@ -1,19 +1,22 @@
 import * as THREE from 'three'
 
 class SceneManager {
-  constructor() {
+constructor() {
     this.scene = null
-this.renderer = null
+    this.renderer = null
     this.camera = null
     this.lights = {}
     this.ambientLight = null
     this.directionalLight = null
     this.isInitialized = false
-    this.resizeObserver = null
+this.resizeObserver = null
     this.canvas = null
+    this.gridHelper = null
+    this.axesHelper = null
+    this.sceneEditorEnabled = false
   }
 
-init(canvas, width = 800, height = 600) {
+  init(canvas, width = 800, height = 600) {
     try {
       this.canvas = canvas
       
@@ -21,16 +24,20 @@ init(canvas, width = 800, height = 600) {
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(0x87CEEB) // Sky blue background
 
-      // Initialize renderer
+      // Initialize renderer with enhanced settings for scene editor
       this.renderer = new THREE.WebGLRenderer({ 
         canvas,
         antialias: true,
-        alpha: true 
+        alpha: true,
+        powerPreference: "high-performance"
       })
       this.renderer.setSize(width, height)
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       this.renderer.shadowMap.enabled = true
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+      this.renderer.toneMappingExposure = 1
 
       // Initialize camera
       this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000)
@@ -41,20 +48,40 @@ init(canvas, width = 800, height = 600) {
       this.setupLighting()
 
       // Add basic ground plane
-// Add basic ground plane
       this.addGroundPlane()
+
+      // Setup scene editor helpers
+      this.setupSceneEditorHelpers()
 
       // Setup canvas resize observer
       this.setupResizeObserver()
 
       this.isInitialized = true
-      console.log('3D Scene initialized successfully')
+      console.log('3D Scene initialized successfully with scene editor support')
       
       return true
     } catch (error) {
       console.error('Failed to initialize 3D scene:', error)
-return false
+      return false
     }
+  }
+
+  setupSceneEditorHelpers() {
+    // Grid helper for scene editor
+    this.gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x222222)
+    this.gridHelper.visible = false // Hidden by default
+    this.scene.add(this.gridHelper)
+
+    // Axes helper for orientation
+    this.axesHelper = new THREE.AxesHelper(5)
+    this.axesHelper.visible = false // Hidden by default
+    this.scene.add(this.axesHelper)
+  }
+
+  enableSceneEditor(enabled = true) {
+    this.sceneEditorEnabled = enabled
+    if (this.gridHelper) this.gridHelper.visible = enabled
+    if (this.axesHelper) this.axesHelper.visible = enabled
   }
 
   setupLighting() {
@@ -188,16 +215,15 @@ return false
     }
   }
   
-  clearHighlight(object) {
+clearHighlight(object) {
     if (object && object.material) {
       object.material.emissive = new THREE.Color(0x000000)
       object.material.emissiveIntensity = 0
       object.material.needsUpdate = true
-}
+    }
   }
-
-  setupResizeObserver() {
-    if (!this.canvas || !window.ResizeObserver) {
+setupResizeObserver() {
+    if (!this.canvas || typeof ResizeObserver === 'undefined') {
       console.warn('ResizeObserver not supported, canvas auto-resize disabled')
       return
     }
@@ -212,15 +238,14 @@ return false
     this.resizeObserver.observe(this.canvas.parentElement || this.canvas)
   }
 
-  resize(width, height) {
+resize(width, height) {
     if (this.camera && this.renderer) {
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(width, height)
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-}
+    }
   }
-
   dispose() {
     // Clean up resize observer
     if (this.resizeObserver) {

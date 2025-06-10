@@ -26,11 +26,80 @@ class CameraController {
     this.rotateSpeed = 1
     this.zoomSpeed = 0.1
     
-    // Spherical coordinates for orbital movement
+// Spherical coordinates for orbital movement
     this.spherical = new THREE.Spherical()
     this.spherical.setFromVector3(this.camera.position.clone().sub(this.target))
     
+    // Scene editor features
+    this.isEditorMode = false
+    this.snapToGrid = false
+    this.gridSize = 1
+    this.focusSpeed = 2
+    
     this.setupEventListeners()
+  }
+
+  enableEditorMode(enabled = true) {
+    this.isEditorMode = enabled
+    this.snapToGrid = enabled
+    if (enabled) {
+      this.domElement.style.cursor = 'default'
+    }
+  }
+
+  focusOnObject(object) {
+    if (!object) return
+    
+    const box = new THREE.Box3().setFromObject(object)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+    
+    // Calculate optimal distance
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const distance = maxDim * 2.5
+    
+    // Animate to new position
+    this.animateToTarget(center, distance)
+  }
+
+  animateToTarget(newTarget, distance = null) {
+    const startTarget = this.target.clone()
+    const startDistance = this.spherical.radius
+    const endDistance = distance || startDistance
+    
+    let progress = 0
+    const duration = 1000 // 1 second
+    const startTime = Date.now()
+    
+    const animate = () => {
+      progress = Math.min((Date.now() - startTime) / duration, 1)
+      const eased = this.easeInOutCubic(progress)
+      
+      this.target.lerpVectors(startTarget, newTarget, eased)
+      this.spherical.radius = startDistance + (endDistance - startDistance) * eased
+      
+      this.update()
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+    
+    animate()
+  }
+
+  easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1
+  }
+
+  snapToGridPosition(position) {
+    if (!this.snapToGrid) return position
+    
+    return {
+      x: Math.round(position.x / this.gridSize) * this.gridSize,
+      y: Math.round(position.y / this.gridSize) * this.gridSize,
+      z: Math.round(position.z / this.gridSize) * this.gridSize
+    }
   }
 
   setupEventListeners() {

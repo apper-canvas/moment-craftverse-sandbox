@@ -83,7 +83,7 @@ class ModelManager {
       clearcoat: 1,
       clearcoatRoughness: 0
     }))
-  }
+}
 
   createBlock(type = 'grass', position = { x: 0, y: 0, z: 0 }, scale = 1) {
     const geometry = this.geometries.get('cube')
@@ -100,20 +100,23 @@ class ModelManager {
     mesh.castShadow = true
     mesh.receiveShadow = true
     
-    // Add metadata
-mesh.userData = {
+    // Add metadata for scene editor
+    mesh.userData = {
       type: 'block',
       blockType: type,
       position: { ...position },
       scale: scale,
-      id: `block_${position.x}_${position.y}_${position.z}`,
+      id: `block_${position.x}_${position.y}_${position.z}_${Date.now()}`,
       selectable: true,
+      editable: true,
+      created: new Date().toISOString(),
       dataOverlay: {
         name: `${type.charAt(0).toUpperCase() + type.slice(1)} Block`,
         properties: {
           material: type,
           hardness: this.getBlockHardness(type),
-          transparent: type === 'water'
+          transparent: type === 'water',
+          physics: type !== 'water'
         }
       }
     }
@@ -207,10 +210,11 @@ mesh.userData = {
     
     return water
   }
-
-  createPlaceholderModel(type = 'cube', position = { x: 0, y: 0, z: 0 }) {
+createPlaceholderModel(type = 'cube', position = { x: 0, y: 0, z: 0 }) {
     const models = {
       cube: () => this.createBlock('grass', position),
+      sphere: () => this.createSphere(position),
+      cylinder: () => this.createCylinder(position),
       tree: () => this.createTree(position),
       water: () => this.createWater(position),
       house: () => this.createSimpleHouse(position),
@@ -218,7 +222,64 @@ mesh.userData = {
     }
     
     const createFunction = models[type] || models.cube
-    return createFunction()
+    const model = createFunction()
+    
+    // Enhance for scene editor
+    if (model) {
+      model.userData.sceneEditorType = type
+      model.userData.selectable = true
+      model.userData.editable = true
+    }
+    
+    return model
+  }
+
+  createSphere(position = { x: 0, y: 0, z: 0 }) {
+    const geometry = this.geometries.get('sphere')
+    const material = new THREE.MeshLambertMaterial({ 
+      color: 0xFF6B6B,
+      transparent: false
+    })
+    
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(position.x, position.y + 0.5, position.z)
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    
+    mesh.userData = {
+      type: 'sphere',
+      position: { ...position },
+      id: `sphere_${position.x}_${position.y}_${position.z}_${Date.now()}`,
+      selectable: true,
+      editable: true,
+      created: new Date().toISOString()
+    }
+    
+    return mesh
+  }
+
+  createCylinder(position = { x: 0, y: 0, z: 0 }) {
+    const geometry = this.geometries.get('cylinder')
+    const material = new THREE.MeshLambertMaterial({ 
+      color: 0x4ECDC4,
+      transparent: false
+    })
+    
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(position.x, position.y + 1, position.z)
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    
+    mesh.userData = {
+      type: 'cylinder',
+      position: { ...position },
+      id: `cylinder_${position.x}_${position.y}_${position.z}_${Date.now()}`,
+      selectable: true,
+      editable: true,
+      created: new Date().toISOString()
+    }
+    
+    return mesh
   }
 
   createSimpleHouse(position = { x: 0, y: 0, z: 0 }) {

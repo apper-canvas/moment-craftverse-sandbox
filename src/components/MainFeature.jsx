@@ -152,8 +152,8 @@ return initialWorld
 const [textureBlendMode, setTextureBlendMode] = useState('overlay')
   const [showMiniMap, setShowMiniMap] = useState(true)
   
-  // 3D Mode state
-const [is3DMode, setIs3DMode] = useState(false)
+// 3D Mode state
+  const [is3DMode, setIs3DMode] = useState(false)
   const [show3DControls, setShow3DControls] = useState(false)
   const [threeJSLoaded, setThreeJSLoaded] = useState(false)
   const [render3DStats, setRender3DStats] = useState({
@@ -162,12 +162,27 @@ const [is3DMode, setIs3DMode] = useState(false)
     triangles: 0
   })
   
+// Scene Editor state
+  const [sceneEditorMode, setSceneEditorMode] = useState(false)
+  const [sceneEditorTool, setSceneEditorTool] = useState('select')
+  const [showPropertyPanel, setShowPropertyPanel] = useState(true)
+  const [showObjectHierarchy, setShowObjectHierarchy] = useState(true)
+  const [sceneObjects, setSceneObjects] = useState([])
+  const [undoStack, setUndoStack] = useState([])
+  const [redoStack, setRedoStack] = useState([])
+  
   // 3D Object Selection and Interaction
   const [selectedObject, setSelectedObject] = useState(null)
   const [hoveredObject, setHoveredObject] = useState(null)
   const [showDataOverlay, setShowDataOverlay] = useState(false)
   const [dataOverlayPosition, setDataOverlayPosition] = useState({ x: 0, y: 0 })
   const [dataOverlayContent, setDataOverlayContent] = useState(null)
+  
+  // Object manipulation state
+  const [manipulationMode, setManipulationMode] = useState('translate') // translate, rotate, scale
+  const [snapToGrid, setSnapToGrid] = useState(true)
+  const [gridSize, setGridSize] = useState(1)
+  const [transformGizmo, setTransformGizmo] = useState(null)
   
   // Responsive UI state
   const [screenSize, setScreenSize] = useState({ width: window.innerWidth, height: window.innerHeight })
@@ -653,6 +668,240 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
     // Clear selection when switching modes
     clearSelection()
   }
+// Scene Editor Functions
+  const toggleSceneEditor = () => {
+setSceneEditorMode(!sceneEditorMode)
+    if (!sceneEditorMode) {
+      setIs3DMode(true) // Force 3D mode for scene editor
+      setSceneEditorTool('select')
+      clearSelection()
+    }
+  }
+  
+  const createObject = (type, position = { x: 0, y: 0, z: 0 }) => {
+    if (!modelManagerRef.current || !sceneManagerRef.current) return
+    
+    const object = modelManagerRef.current.createPlaceholderModel(type, position)
+    if (object) {
+      const objectData = {
+        id: `${type}_${Date.now()}`,
+        type,
+        mesh: object,
+        position: { ...position },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        properties: {
+          name: `${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          material: 'default',
+          visible: true
+        }
+      }
+      
+      sceneManagerRef.current.scene.add(object)
+      setSceneObjects(prev => [...prev, objectData])
+      setSelectedObject(object)
+      
+      // Add to undo stack
+      addToUndoStack('create', objectData)
+      
+      toast.success(`Created ${type}`)
+    }
+  }
+  
+  const deleteSelectedObject = () => {
+    if (!selectedObject || !sceneManagerRef.current) return
+    
+    const objectData = sceneObjects.find(obj => obj.mesh === selectedObject)
+    if (objectData) {
+      sceneManagerRef.current.scene.remove(selectedObject)
+      setSceneObjects(prev => prev.filter(obj => obj.id !== objectData.id))
+      addToUndoStack('delete', objectData)
+      setSelectedObject(null)
+      toast.success('Object deleted')
+    }
+  }
+  
+  const updateObjectProperties = (objectId, properties) => {
+    setSceneObjects(prev => prev.map(obj => 
+      obj.id === objectId ? { ...obj, ...properties } : obj
+    ))
+    
+    // Update the actual 3D object
+    const objectData = sceneObjects.find(obj => obj.id === objectId)
+    if (objectData && objectData.mesh) {
+      if (properties.position) {
+        objectData.mesh.position.set(properties.position.x, properties.position.y, properties.position.z)
+      }
+      if (properties.rotation) {
+        objectData.mesh.rotation.set(properties.rotation.x, properties.rotation.y, properties.rotation.z)
+      }
+      if (properties.scale) {
+        objectData.mesh.scale.set(properties.scale.x, properties.scale.y, properties.scale.z)
+      }
+    }
+  }
+  
+  const addToUndoStack = (action, data) => {
+    setUndoStack(prev => [...prev.slice(-19), { action, data, timestamp: Date.now() }])
+    setRedoStack([]) // Clear redo stack on new action
+  }
+  
+  const undo = () => {
+    if (undoStack.length === 0) return
+    
+    const lastAction = undoStack[undoStack.length - 1]
+    setUndoStack(prev => prev.slice(0, -1))
+    setRedoStack(prev => [lastAction, ...prev])
+    
+    // Implement undo logic based on action type
+    switch (lastAction.action) {
+      case 'create':
+        if (lastAction.data.mesh && sceneManagerRef.current) {
+          sceneManagerRef.current.scene.remove(lastAction.data.mesh)
+          setSceneObjects(prev => prev.filter(obj => obj.id !== lastAction.data.id))
+        }
+        break
+      case 'delete':
+        // Re-add deleted object
+        if (lastAction.data.mesh && sceneManagerRef.current) {
+          sceneManagerRef.current.scene.add(lastAction.data.mesh)
+          setSceneObjects(prev => [...prev, lastAction.data])
+        }
+        break
+    }
+  }
+  
+  const redo = () => {
+    if (redoStack.length === 0) return
+    
+    const actionToRedo = redoStack[0]
+    setRedoStack(prev => prev.slice(1))
+    setUndoStack(prev => [...prev, actionToRedo])
+    
+    // Implement redo logic
+    switch (actionToRedo.action) {
+      case 'create':
+        if (actionToRedo.data.mesh && sceneManagerRef.current) {
+          sceneManagerRef.current.scene.add(actionToRedo.data.mesh)
+          setSceneObjects(prev => [...prev, actionToRedo.data])
+        }
+        break
+      case 'delete':
+        if (actionToRedo.data.mesh && sceneManagerRef.current) {
+          sceneManagerRef.current.scene.remove(actionToRedo.data.mesh)
+          setSceneObjects(prev => prev.filter(obj => obj.id !== actionToRedo.data.id))
+        }
+        break
+    }
+  }
+  
+  const saveScene = () => {
+    const sceneData = {
+      objects: sceneObjects.map(obj => ({
+        id: obj.id,
+        type: obj.type,
+        position: obj.position,
+        rotation: obj.rotation,
+        scale: obj.scale,
+        properties: obj.properties
+      })),
+      camera: {
+        position: cameraControllerRef.current ? {
+          x: cameraControllerRef.current.camera.position.x,
+          y: cameraControllerRef.current.camera.position.y,
+          z: cameraControllerRef.current.camera.position.z
+        } : { x: 0, y: 0, z: 0 },
+        target: cameraControllerRef.current ? {
+          x: cameraControllerRef.current.target.x,
+          y: cameraControllerRef.current.target.y,
+          z: cameraControllerRef.current.target.z
+        } : { x: 0, y: 0, z: 0 }
+      },
+      metadata: {
+        name: 'CraftVerse Scene',
+        created: new Date().toISOString(),
+        version: '1.0'
+      }
+    }
+    
+    const blob = new Blob([JSON.stringify(sceneData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'craftverse-scene.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Scene saved!')
+  }
+  
+  const loadScene = useCallback((event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const sceneData = JSON.parse(e.target.result)
+        
+        // Clear current scene
+        sceneObjects.forEach(obj => {
+          if (obj.mesh && sceneManagerRef.current) {
+            sceneManagerRef.current.scene.remove(obj.mesh)
+          }
+        })
+        setSceneObjects([])
+        
+        // Load objects
+        if (sceneData.objects && modelManagerRef.current && sceneManagerRef.current) {
+          const newObjects = sceneData.objects.map(objData => {
+            const mesh = modelManagerRef.current.createPlaceholderModel(objData.type, objData.position)
+            if (mesh) {
+              mesh.position.set(objData.position.x, objData.position.y, objData.position.z)
+              mesh.rotation.set(objData.rotation.x, objData.rotation.y, objData.rotation.z)
+              mesh.scale.set(objData.scale.x, objData.scale.y, objData.scale.z)
+              sceneManagerRef.current.scene.add(mesh)
+            }
+            return {
+              ...objData,
+              mesh
+            }
+          })
+          setSceneObjects(newObjects)
+        }
+        
+        // Load camera
+        if (sceneData.camera && cameraControllerRef.current) {
+          cameraControllerRef.current.camera.position.set(
+            sceneData.camera.position.x,
+            sceneData.camera.position.y,
+            sceneData.camera.position.z
+          )
+          cameraControllerRef.current.setTarget(
+            sceneData.camera.target.x,
+            sceneData.camera.target.y,
+            sceneData.camera.target.z
+          )
+        }
+        
+        toast.success('Scene loaded successfully!')
+      } catch (error) {
+        console.error('Scene load error:', error)
+        toast.error('Failed to load scene file!')
+      }
+    }
+    reader.readAsText(file)
+  }, [sceneObjects])
+
+  const toggle3DMode = () => {
+    setIs3DMode(!is3DMode)
+    setGraphicsSettings(prev => ({
+      ...prev,
+      renderMode: !is3DMode ? '3d' : '2d'
+    }))
+    
+    // Clear selection when switching modes
+    clearSelection()
+  }
 
   // Apply graphics settings to the game
   const applyGraphicsSettings = (settings) => {
@@ -671,16 +920,6 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
     }
     
     // Apply 3D-specific settings
-    if (is3DMode && sceneManagerRef.current) {
-      sceneManagerRef.current.updateLighting(settings.lightingQuality)
-      
-      if (sceneManagerRef.current.renderer) {
-        const renderer = sceneManagerRef.current.renderer
-        renderer.setPixelRatio(settings.antiAliasing === 'none' ? 1 : Math.min(window.devicePixelRatio, 2))
-        renderer.shadowMap.enabled = settings.shadows
-      }
-    }
-  }
   // Update FPS counter
   const updateFPS = useCallback(() => {
     frameCountRef.current++
@@ -1376,32 +1615,298 @@ return (
         )}
       </div>
 {/* Mode Toggle Button - Responsive */}
+{/* Mode Toggle Buttons - Responsive */}
       <div className={`absolute z-50 ${isMobile ? 'top-2 left-2' : 'top-4 left-1/2 transform -translate-x-1/2'}`}>
-        <motion.button
-          onClick={toggle3DMode}
-          className={`px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all duration-300 flex items-center gap-3 ${
-            is3DMode 
-              ? 'bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700' 
-              : 'bg-gradient-to-r from-surface-700 to-surface-800 hover:from-surface-600 hover:to-surface-700'
-          }`}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          {is3DMode ? (
-            <>
-              <Box size={20} />
-              <span>3D Mode</span>
-              <div className="text-xs bg-green-500 px-2 py-1 rounded-full">ACTIVE</div>
-            </>
-          ) : (
-            <>
-              <Square size={20} />
-              <span>2D Mode</span>
-              <div className="text-xs bg-surface-500 px-2 py-1 rounded-full">ACTIVE</div>
-            </>
+        <div className="flex gap-2">
+          <motion.button
+            onClick={toggle3DMode}
+            className={`px-4 py-2 rounded-xl font-semibold text-white shadow-lg transition-all duration-300 flex items-center gap-2 ${
+              is3DMode 
+                ? 'bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700' 
+                : 'bg-gradient-to-r from-surface-700 to-surface-800 hover:from-surface-600 hover:to-surface-700'
+            }`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {is3DMode ? <Box size={16} /> : <Square size={16} />}
+            <span>{is3DMode ? '3D' : '2D'}</span>
+          </motion.button>
+          
+          {is3DMode && (
+            <motion.button
+              onClick={toggleSceneEditor}
+              className={`px-4 py-2 rounded-xl font-semibold text-white shadow-lg transition-all duration-300 flex items-center gap-2 ${
+                sceneEditorMode 
+                  ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
+                  : 'bg-gradient-to-r from-surface-700 to-surface-800 hover:from-surface-600 hover:to-surface-700'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Settings size={16} />
+              <span>Editor</span>
+              {sceneEditorMode && <div className="text-xs bg-green-500 px-2 py-1 rounded-full">ON</div>}
+            </motion.button>
           )}
-        </motion.button>
+        </div>
       </div>
+
+{/* Scene Editor Panel */}
+      {sceneEditorMode && is3DMode && (
+        <motion.div
+          initial={{ opacity: 0, x: -300 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -300 }}
+          className="absolute top-4 left-4 bottom-4 w-80 scene-editor-panel z-50 overflow-y-auto"
+        >
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Box size={20} className="text-primary-400" />
+                Scene Editor
+              </h2>
+              <button
+                onClick={toggleSceneEditor}
+                className="control-button hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Tool Palette */}
+            <div className="tool-palette mb-4">
+              <h3 className="text-sm font-semibold text-surface-300 mb-2">Tools</h3>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { id: 'select', icon: '🎯', title: 'Select' },
+                  { id: 'translate', icon: '🔄', title: 'Move' },
+                  { id: 'rotate', icon: '🔃', title: 'Rotate' },
+                  { id: 'scale', icon: '📏', title: 'Scale' }
+                ].map(tool => (
+<button
+                    key={tool.id}
+                    onClick={() => setSceneEditorTool(tool.id)}
+                    className={`tool-button ${sceneEditorTool === tool.id ? 'active' : ''}`}
+                    title={tool.title}
+                  >
+                    <span className="text-lg">{tool.icon}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Object Creation */}
+            <div className="tool-palette mb-4">
+              <h3 className="text-sm font-semibold text-surface-300 mb-2">Create Objects</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { type: 'cube', icon: '📦', name: 'Cube' },
+                  { type: 'sphere', icon: '⚽', name: 'Sphere' },
+                  { type: 'cylinder', icon: '🥫', name: 'Cylinder' },
+                  { type: 'tree', icon: '🌳', name: 'Tree' },
+                  { type: 'house', icon: '🏠', name: 'House' },
+                  { type: 'tower', icon: '🗼', name: 'Tower' }
+                ].map(obj => (
+                  <button
+                    key={obj.type}
+                    onClick={() => createObject(obj.type)}
+                    className="tool-button flex flex-col items-center justify-center text-xs"
+                    title={`Create ${obj.name}`}
+                  >
+                    <span className="text-lg mb-1">{obj.icon}</span>
+                    <span className="text-xs text-surface-300">{obj.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Scene Actions */}
+            <div className="tool-palette mb-4">
+              <h3 className="text-sm font-semibold text-surface-300 mb-2">Scene</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={saveScene}
+                  className="control-button text-xs flex items-center gap-1"
+                >
+                  <Save size={14} />
+                  Save
+                </button>
+                <button
+                  onClick={() => document.getElementById('load-scene-input')?.click()}
+                  className="control-button text-xs flex items-center gap-1"
+                >
+                  <Upload size={14} />
+                  Load
+                </button>
+                <button
+                  onClick={undo}
+                  disabled={undoStack.length === 0}
+                  className="control-button text-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RotateCcw size={14} />
+                  Undo
+                </button>
+                <button
+                  onClick={redo}
+                  disabled={redoStack.length === 0}
+                  className="control-button text-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RotateCw size={14} />
+                  Redo
+                </button>
+              </div>
+            </div>
+            
+            {/* Object Hierarchy */}
+            {showObjectHierarchy && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-surface-300">Objects ({sceneObjects.length})</h3>
+                  <button
+                    onClick={() => setShowObjectHierarchy(false)}
+                    className="text-surface-400 hover:text-surface-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="object-hierarchy">
+                  {sceneObjects.length === 0 ? (
+                    <div className="text-xs text-surface-500 italic p-2">No objects in scene</div>
+                  ) : (
+                    sceneObjects.map(obj => (
+                      <div
+                        key={obj.id}
+                        onClick={() => setSelectedObject(obj.mesh)}
+                        className={`hierarchy-item ${selectedObject === obj.mesh ? 'selected' : ''}`}
+                      >
+                        <span className="text-lg">{obj.type === 'cube' ? '📦' : obj.type === 'sphere' ? '⚽' : obj.type === 'tree' ? '🌳' : '🏠'}</span>
+                        <span className="text-sm flex-1">{obj.properties.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedObject(obj.mesh)
+                            deleteSelectedObject()
+                          }}
+                          className="text-red-400 hover:text-red-300 ml-2"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Property Panel */}
+            {selectedObject && showPropertyPanel && (
+              <div className="property-panel">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-surface-300">Properties</h3>
+                  <button
+                    onClick={() => setShowPropertyPanel(false)}
+                    className="text-surface-400 hover:text-surface-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                {(() => {
+                  const objData = sceneObjects.find(obj => obj.mesh === selectedObject)
+                  if (!objData) return null
+                  
+                  return (
+                    <div className="space-y-3">
+                      <div className="property-row">
+                        <span className="property-label">Name:</span>
+                        <input
+                          type="text"
+                          value={objData.properties.name}
+                          onChange={(e) => updateObjectProperties(objData.id, {
+                            properties: { ...objData.properties, name: e.target.value }
+                          })}
+                          className="property-input"
+                        />
+                      </div>
+                      
+                      <div>
+                        <span className="property-label block mb-2">Position:</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['x', 'y', 'z'].map(axis => (
+                            <div key={axis}>
+                              <label className="text-xs text-surface-400">{axis.toUpperCase()}</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={objData.position[axis]}
+                                onChange={(e) => updateObjectProperties(objData.id, {
+                                  position: { ...objData.position, [axis]: parseFloat(e.target.value) || 0 }
+                                })}
+                                className="property-input"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <span className="property-label block mb-2">Rotation:</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['x', 'y', 'z'].map(axis => (
+                            <div key={axis}>
+                              <label className="text-xs text-surface-400">{axis.toUpperCase()}</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={objData.rotation[axis]}
+                                onChange={(e) => updateObjectProperties(objData.id, {
+                                  rotation: { ...objData.rotation, [axis]: parseFloat(e.target.value) || 0 }
+                                })}
+                                className="property-input"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <span className="property-label block mb-2">Scale:</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['x', 'y', 'z'].map(axis => (
+                            <div key={axis}>
+                              <label className="text-xs text-surface-400">{axis.toUpperCase()}</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.1"
+                                value={objData.scale[axis]}
+                                onChange={(e) => updateObjectProperties(objData.id, {
+                                  scale: { ...objData.scale, [axis]: parseFloat(e.target.value) || 0.1 }
+                                })}
+                                className="property-input"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+          
+          {/* Hidden file input for scene loading */}
+          <input
+            id="load-scene-input"
+            type="file"
+            onChange={loadScene}
+            accept=".json"
+            style={{ display: 'none' }}
+          />
+        </motion.div>
+      )}
+
 {/* HUD - Top Bar - Responsive */}
       <div className={`absolute z-50 ${isMobile ? 'top-16 left-2 right-2 space-y-2' : 'top-4 left-4 right-4 flex justify-between items-start'}`}>
         {/* Game Title & Mode */}
