@@ -26,19 +26,18 @@ import {
   Sparkles,
   Image,
   Wind,
-  Eye as ViewIcon,
+Eye as ViewIcon,
   Box,
   RotateCw as Rotate3D,
 } from 'lucide-react'
 
 // Import Three.js for 3D functionality
 import * as THREE from 'three'
-
 // Import 3D services
-import SceneManager from '@/services/3d/scene'
-import CameraController from '@/services/3d/camera'
-import ModelManager from '@/services/3d/models'
-import PerformanceMonitor from '@/services/3d/performance'
+import SceneManager from '../services/3d/scene'
+import CameraController from '../services/3d/camera'
+import ModelManager from '../services/3d/models'
+import PerformanceMonitor from '../services/3d/performance'
 
 // Block types with enhanced properties
 const BLOCK_TYPES = {
