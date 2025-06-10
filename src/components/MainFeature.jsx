@@ -37,7 +37,7 @@ const BLOCK_TYPES = {
     texture: null,
     pattern: 'solid'
   },
-dirt: { 
+dirt: {
     color: '#92400E', 
     name: 'Dirt',
     texture: null,
@@ -839,7 +839,6 @@ className="absolute top-4 right-4 bottom-4 w-80 bg-surface-900 rounded-xl border
     a.download = 'craftverse-world.json'
     a.click()
     URL.revokeObjectURL(url)
-    toast.success('World saved!')
 toast.success('World saved!')
   }
 
@@ -867,8 +866,9 @@ toast.success('World saved!')
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-primary-900 to-surface-900 relative overflow-hidden">
         {/* Animated background blocks */}
-        <div className="absolute inset-0 overflow-hidden">
+<div className="absolute inset-0 overflow-hidden">
           {[...Array(20)].map((_, i) => (
+            <motion.div
               key={i}
               className="absolute w-16 h-16 opacity-10"
               style={{
