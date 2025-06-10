@@ -153,7 +153,7 @@ const [textureBlendMode, setTextureBlendMode] = useState('overlay')
   const [showMiniMap, setShowMiniMap] = useState(true)
   
   // 3D Mode state
-  const [is3DMode, setIs3DMode] = useState(false)
+const [is3DMode, setIs3DMode] = useState(false)
   const [show3DControls, setShow3DControls] = useState(false)
   const [threeJSLoaded, setThreeJSLoaded] = useState(false)
   const [render3DStats, setRender3DStats] = useState({
@@ -161,6 +161,18 @@ const [textureBlendMode, setTextureBlendMode] = useState('overlay')
     drawCalls: 0,
     triangles: 0
   })
+  
+  // 3D Object Selection and Interaction
+  const [selectedObject, setSelectedObject] = useState(null)
+  const [hoveredObject, setHoveredObject] = useState(null)
+  const [showDataOverlay, setShowDataOverlay] = useState(false)
+  const [dataOverlayPosition, setDataOverlayPosition] = useState({ x: 0, y: 0 })
+  const [dataOverlayContent, setDataOverlayContent] = useState(null)
+  
+  // Responsive UI state
+  const [screenSize, setScreenSize] = useState({ width: window.innerWidth, height: window.innerHeight })
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [uiScale, setUIScale] = useState(1)
   
   // Graphics settings state
   const [showGraphicsSettings, setShowGraphicsSettings] = useState(false)
@@ -231,19 +243,45 @@ const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [])
+}, [])
+
+  // Responsive design handler
+  useEffect(() => {
+    const handleResize = () => {
+      const newWidth = window.innerWidth
+      const newHeight = window.innerHeight
+      setScreenSize({ width: newWidth, height: newHeight })
+      setIsMobile(newWidth < 768)
+      
+      // Calculate UI scale based on screen size
+      const baseWidth = 1920
+      const scale = Math.max(0.8, Math.min(1.2, newWidth / baseWidth))
+      setUIScale(scale)
+      
+      // Resize 3D canvas if active
+      if (is3DMode && sceneManagerRef.current) {
+        sceneManagerRef.current.resize(newWidth, newHeight)
+      }
+    }
+    
+    window.addEventListener('resize', handleResize)
+    handleResize() // Initial call
+    
+    return () => window.removeEventListener('resize', handleResize)
+  }, [is3DMode])
+
 // Initialize 3D engine
   useEffect(() => {
     const init3DEngine = async () => {
       if (!is3DMode || !canvas3DRef.current) return
       
       try {
-        // Initialize Scene Manager
+        // Initialize Scene Manager with responsive size
         sceneManagerRef.current = new SceneManager()
         const initSuccess = sceneManagerRef.current.init(
           canvas3DRef.current,
-          canvas3DRef.current.clientWidth,
-          canvas3DRef.current.clientHeight
+          screenSize.width,
+          screenSize.height
         )
         
         if (!initSuccess) {
@@ -256,11 +294,14 @@ const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
         modelManagerRef.current = new ModelManager()
         modelManagerRef.current.init()
         
-        // Initialize Camera Controller
+        // Initialize Camera Controller with responsive controls
         cameraControllerRef.current = new CameraController(
           sceneManagerRef.current.camera,
           canvas3DRef.current
         )
+        
+        // Setup 3D object selection
+        setup3DObjectSelection()
         
         // Initialize Performance Monitor
         performanceMonitorRef.current = new PerformanceMonitor()
@@ -297,7 +338,7 @@ const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
     }
     
     return () => cleanup3DEngine()
-  }, [is3DMode])
+  }, [is3DMode, screenSize])
 
   // Save graphics settings to localStorage
   useEffect(() => {
@@ -514,6 +555,92 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
     if (tree) sceneManagerRef.current.scene.add(tree)
     if (house) sceneManagerRef.current.scene.add(house)
     if (tower) sceneManagerRef.current.scene.add(tower)
+}
+
+  // 3D Object Selection System
+  const setup3DObjectSelection = () => {
+    if (!canvas3DRef.current || !sceneManagerRef.current) return
+    
+    const raycaster = new THREE.Raycaster()
+    const mouse = new THREE.Vector2()
+    
+    const handleObjectClick = (event) => {
+      const rect = canvas3DRef.current.getBoundingClientRect()
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      raycaster.setFromCamera(mouse, sceneManagerRef.current.camera)
+      const intersects = raycaster.intersectObjects(sceneManagerRef.current.scene.children, true)
+      
+      if (intersects.length > 0) {
+        const selectedObj = intersects[0].object
+        setSelectedObject(selectedObj)
+        
+        // Show data overlay
+        setDataOverlayContent({
+          type: selectedObj.userData.type || 'object',
+          position: selectedObj.position,
+          scale: selectedObj.scale,
+          material: selectedObj.material?.type || 'unknown'
+        })
+        setDataOverlayPosition({ x: event.clientX, y: event.clientY })
+        setShowDataOverlay(true)
+        
+        // Add selection visual feedback
+        if (selectedObj.material) {
+          selectedObj.material.emissive = new THREE.Color(0x4F46E5)
+          selectedObj.material.emissiveIntensity = 0.3
+        }
+        
+        toast.success(`Selected: ${selectedObj.userData.type || 'Object'}`)
+      } else {
+        clearSelection()
+      }
+    }
+    
+    const handleObjectHover = (event) => {
+      const rect = canvas3DRef.current.getBoundingClientRect()
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      raycaster.setFromCamera(mouse, sceneManagerRef.current.camera)
+      const intersects = raycaster.intersectObjects(sceneManagerRef.current.scene.children, true)
+      
+      // Clear previous hover effects
+      if (hoveredObject && hoveredObject.material) {
+        hoveredObject.material.emissive = new THREE.Color(0x000000)
+        hoveredObject.material.emissiveIntensity = 0
+      }
+      
+      if (intersects.length > 0) {
+        const hoveredObj = intersects[0].object
+        setHoveredObject(hoveredObj)
+        
+        // Add hover visual feedback
+        if (hoveredObj.material && hoveredObj !== selectedObject) {
+          hoveredObj.material.emissive = new THREE.Color(0x10B981)
+          hoveredObj.material.emissiveIntensity = 0.1
+        }
+        
+        canvas3DRef.current.style.cursor = 'pointer'
+      } else {
+        setHoveredObject(null)
+        canvas3DRef.current.style.cursor = 'grab'
+      }
+    }
+    
+    canvas3DRef.current.addEventListener('click', handleObjectClick)
+    canvas3DRef.current.addEventListener('mousemove', handleObjectHover)
+  }
+  
+  const clearSelection = () => {
+    if (selectedObject && selectedObject.material) {
+      selectedObject.material.emissive = new THREE.Color(0x000000)
+      selectedObject.material.emissiveIntensity = 0
+    }
+    setSelectedObject(null)
+    setShowDataOverlay(false)
+    setDataOverlayContent(null)
   }
 
   const toggle3DMode = () => {
@@ -522,6 +649,9 @@ toast.success(`Placed ${BLOCK_TYPES[player.selectedSlot]?.name}!`)
       ...prev,
       renderMode: !is3DMode ? '3d' : '2d'
     }))
+    
+    // Clear selection when switching modes
+    clearSelection()
   }
 
   // Apply graphics settings to the game
@@ -1106,9 +1236,36 @@ onClick={startGame}
     )
 }
 return (
-    <div className="w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui">
+    <div className={`w-full h-screen relative bg-gradient-to-b from-sky-300 to-green-300 overflow-hidden game-ui ${is3DMode ? 'mode-3d' : 'mode-2d'}`}>
+      {/* Data Overlay for 3D Objects */}
+      {showDataOverlay && dataOverlayContent && (
+        <div 
+          className="data-overlay"
+          style={{
+            left: `${dataOverlayPosition.x + 10}px`,
+            top: `${dataOverlayPosition.y - 10}px`,
+            transform: `scale(${uiScale})`
+          }}
+        >
+          <div className="space-y-1">
+            <div className="font-semibold text-primary-300">
+              {dataOverlayContent.type.charAt(0).toUpperCase() + dataOverlayContent.type.slice(1)}
+            </div>
+            <div className="text-surface-300">
+              Position: ({dataOverlayContent.position.x.toFixed(1)}, {dataOverlayContent.position.y.toFixed(1)}, {dataOverlayContent.position.z.toFixed(1)})
+            </div>
+            <div className="text-surface-300">
+              Material: {dataOverlayContent.material}
+            </div>
+            <div className="text-xs text-surface-400 mt-1">
+              Click to select • Right-click for options
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Game Canvas Container */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 responsive-3d-container">
         {/* 2D Canvas */}
         {!is3DMode && (
           <div 
@@ -1218,9 +1375,8 @@ return (
           </div>
         )}
       </div>
-      
-      {/* Mode Toggle Button */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
+{/* Mode Toggle Button - Responsive */}
+      <div className={`absolute z-50 ${isMobile ? 'top-2 left-2' : 'top-4 left-1/2 transform -translate-x-1/2'}`}>
         <motion.button
           onClick={toggle3DMode}
           className={`px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all duration-300 flex items-center gap-3 ${
@@ -1246,130 +1402,154 @@ return (
           )}
         </motion.button>
       </div>
-      {/* HUD - Top Bar */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-50">
+{/* HUD - Top Bar - Responsive */}
+      <div className={`absolute z-50 ${isMobile ? 'top-16 left-2 right-2 space-y-2' : 'top-4 left-4 right-4 flex justify-between items-start'}`}>
         {/* Game Title & Mode */}
-        <div className="hud-panel">
-          <div className="flex items-center gap-3">
-            <Square size={20} className="text-primary-400" />
-            <h1 className="text-xl font-bold font-heading text-white">CraftVerse</h1>
-            <span className="px-2 py-1 bg-secondary-600 text-xs rounded text-white font-medium">
+        <div className={`responsive-hud-panel ${isMobile ? 'mobile-hud-compact' : ''}`}>
+          <div className={`flex items-center gap-3 ${isMobile ? 'justify-center' : ''}`}>
+            <Square size={isMobile ? 16 : 20} className="text-primary-400" />
+            <h1 className={`font-bold font-heading text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>CraftVerse</h1>
+            <span className={`px-2 py-1 bg-secondary-600 rounded text-white font-medium ${isMobile ? 'text-xs' : 'text-xs'}`}>
               {player.gameMode.toUpperCase()}
             </span>
+            {selectedObject && (
+              <span className="px-2 py-1 bg-primary-600 text-xs rounded text-white font-medium animate-pulse">
+                SELECTED
+              </span>
+            )}
           </div>
         </div>
-{/* Performance Monitor */}
-        <div className="hud-panel">
-          <div className="text-sm space-y-1">
+
+        {/* Performance Monitor */}
+        <div className={`responsive-hud-panel ${isMobile ? 'mobile-hud-compact' : ''}`}>
+          <div className={`space-y-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             <div className="flex items-center gap-2">
-              <Monitor size={16} className="text-green-400" />
+              <Monitor size={isMobile ? 12 : 16} className="text-green-400" />
               <span>FPS: {is3DMode ? render3DStats.fps : fps}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Square size={16} className="text-blue-400" />
+              <Square size={isMobile ? 12 : 16} className="text-blue-400" />
               <span>{is3DMode ? 'Triangles' : 'Chunks'}: {is3DMode ? render3DStats.triangles : performance.chunks}</span>
             </div>
             {is3DMode && (
               <div className="flex items-center gap-2">
-                <Box size={16} className="text-purple-400" />
+                <Box size={isMobile ? 12 : 16} className="text-purple-400" />
                 <span>Calls: {render3DStats.drawCalls}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Controls */}
-        {/* Controls */}
-<div className="hud-panel">
-          <div className="flex gap-2">
+        {/* Controls - Responsive Layout */}
+        <div className={`responsive-hud-panel ${isMobile ? 'mobile-hud-compact' : ''}`}>
+<div className={`flex gap-2 ${isMobile ? 'flex-wrap justify-center' : ''}`}>
             <button
               onClick={() => setShowMiniMap(!showMiniMap)}
-              className="control-button hover:bg-primary-600"
+              className={`control-button hover:bg-primary-600 ${isMobile ? 'px-2 py-1' : ''}`}
               title="Toggle Mini-Map"
             >
-              <Map size={16} />
+              <Map size={isMobile ? 12 : 16} />
+              {!isMobile && " Map"}
             </button>
             
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-              {isPlaying ? 'Pause' : 'Play'}
+              {isPlaying ? <Pause size={isMobile ? 12 : 16} /> : <Play size={isMobile ? 12 : 16} />}
+              {!isMobile && (isPlaying ? 'Pause' : 'Play')}
             </button>
             
             <button
               onClick={resetWorld}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              <RotateCcw size={16} />
-              Reset
+              <RotateCcw size={isMobile ? 12 : 16} />
+              {!isMobile && "Reset"}
             </button>
           
             <button
               onClick={saveWorld}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              <Save size={16} />
-              Save
+              <Save size={isMobile ? 12 : 16} />
+              {!isMobile && "Save"}
             </button>
           
             <button
               onClick={() => loadWorldRef.current?.click()}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              <Upload size={16} />
-              Load
+              <Upload size={isMobile ? 12 : 16} />
+              {!isMobile && "Load"}
             </button>
           
-            {/* 3D Controls Toggle */}
+            {/* 3D Object Selection Controls */}
             {is3DMode && (
-              <button
-                onClick={() => setShow3DControls(!show3DControls)}
-                className="control-button flex items-center gap-2"
-                title="Toggle 3D Controls"
-              >
-                <Rotate3D size={16} />
-                3D Stats
-              </button>
+              <>
+                <button
+                  onClick={() => setShow3DControls(!show3DControls)}
+                  className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
+                  title="Toggle 3D Controls"
+                >
+                  <Rotate3D size={isMobile ? 12 : 16} />
+                  {!isMobile && "3D Stats"}
+                </button>
+                
+                {selectedObject && (
+                  <button
+                    onClick={clearSelection}
+                    className={`control-button flex items-center gap-2 bg-red-600 hover:bg-red-700 ${isMobile ? 'px-2 py-1' : ''}`}
+                    title="Clear Selection"
+                  >
+                    <Eye size={isMobile ? 12 : 16} />
+                    {!isMobile && "Clear"}
+                  </button>
+                )}
+              </>
             )}
           
             <button
               onClick={() => setShowTextureDesigner(!showTextureDesigner)}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              <Palette size={16} />
-              Textures
+              <Palette size={isMobile ? 12 : 16} />
+              {!isMobile && "Textures"}
             </button>
           
             <button
               onClick={() => setShowGraphicsSettings(!showGraphicsSettings)}
-              className="control-button flex items-center gap-2"
+              className={`control-button flex items-center gap-2 ${isMobile ? 'px-2 py-1' : ''}`}
             >
-              <Settings size={16} />
-              Graphics
+              <Settings size={isMobile ? 12 : 16} />
+              {!isMobile && "Graphics"}
             </button>
           </div>
         </div>
-        
-        {/* Statistics */}
-        <div className="hud-panel">
-          <div className="text-sm space-y-1">
+{/* Statistics - Responsive */}
+        <div className={`responsive-hud-panel ${isMobile ? 'mobile-hud-compact' : ''}`}>
+          <div className={`space-y-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             <div className="flex items-center gap-2">
-              <Square size={16} className="text-green-400" />
+              <Square size={isMobile ? 12 : 16} className="text-green-400" />
               <span>Placed: {statistics.totalBlocksPlaced}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Trash2 size={16} className="text-red-400" />
+              <Trash2 size={isMobile ? 12 : 16} className="text-red-400" />
               <span>Mined: {statistics.totalBlocksMined}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Palette size={16} className="text-purple-400" />
+              <Palette size={isMobile ? 12 : 16} className="text-purple-400" />
               <span>Types: {statistics.uniqueBlockTypes.size}</span>
             </div>
+            {selectedObject && (
+              <div className="flex items-center gap-2 text-primary-400">
+                <Box size={isMobile ? 12 : 16} />
+                <span>Selected: {selectedObject.userData.type || 'Object'}</span>
+              </div>
+            )}
           </div>
         </div>
-</div>
+      </div>
       
       {/* Hidden file input for loading worlds */}
       <input
@@ -1604,9 +1784,9 @@ return (
         {showTextureLibrary && renderTextureLibrary()}
       </AnimatePresence>
       
-      {/* Inventory Bar - Bottom */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50">
-        <div className="hud-panel">
+{/* Inventory Bar - Bottom - Responsive */}
+      <div className={`absolute z-50 ${isMobile ? 'bottom-2 left-2 right-2' : 'bottom-4 left-1/2 transform -translate-x-1/2'}`}>
+        <div className={`responsive-hud-panel ${isMobile ? 'mobile-hud-compact' : ''}`}>
           <div className="flex gap-2 mb-3">
             {Object.entries(BLOCK_TYPES).map(([type, block]) => (
               <motion.div
@@ -1645,10 +1825,10 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
 </div>
       </div>
       
-{/* Camera Controls - Right Side (2D Mode Only) */}
-      {!is3DMode && (
+{/* Camera Controls - Right Side (2D Mode Only) - Responsive */}
+      {!is3DMode && !isMobile && (
         <div className="absolute right-4 bottom-32 z-40">
-          <div className="hud-panel space-y-2">
+          <div className="responsive-hud-panel space-y-2">
             <div className="text-xs text-surface-300 text-center mb-2 font-semibold">2D Camera</div>
             <button
               onClick={() => setCamera(prev => ({ ...prev, y: prev.y - 30 }))}
@@ -1707,10 +1887,10 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
         </div>
       )}
       
-      {/* 3D Camera Instructions */}
-      {is3DMode && (
+{/* 3D Camera Instructions - Responsive */}
+      {is3DMode && !isMobile && (
         <div className="absolute right-4 bottom-32 z-40">
-          <div className="hud-panel space-y-2 max-w-xs">
+          <div className="responsive-hud-panel space-y-2 max-w-xs">
             <div className="text-xs text-surface-300 text-center mb-2 font-semibold">3D Controls</div>
             <div className="text-xs text-surface-400 space-y-1">
               <div>• Drag: Orbit camera</div>
@@ -1724,10 +1904,11 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
         </div>
       )}
       
-{/* Instructions - Bottom Left */}
-      <div className="absolute bottom-4 left-4 z-40">
-        <div className="hud-panel text-xs space-y-1 max-w-xs">
-          <div className="text-surface-300 font-semibold mb-2 flex items-center gap-2">
+{/* Instructions - Bottom Left - Responsive */}
+      {!isMobile && (
+        <div className="absolute bottom-4 left-4 z-40">
+          <div className="responsive-hud-panel text-xs space-y-1 max-w-xs">
+            <div className="text-surface-300 font-semibold mb-2 flex items-center gap-2">
             {is3DMode ? <Box size={14} /> : <Square size={14} />}
             {is3DMode ? '3D' : '2D'} Controls:
           </div>
@@ -1748,13 +1929,36 @@ onClick={() => setPlayer(prev => ({ ...prev, selectedSlot: type }))}
               <div className="text-surface-400">• Mouse Wheel: Zoom</div>
               <div className="text-surface-400">• WASD: Move target</div>
               <div className="text-surface-400">• Q/E: Up/Down movement</div>
-              <div className="text-surface-400">• R: Reset camera</div>
+<div className="text-surface-400">• R: Reset camera</div>
               <div className="text-purple-400 mt-2">• Click mode toggle for controls</div>
             </>
           )}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+      {/* Mobile-specific UI for 3D object selection */}
+      {isMobile && is3DMode && (
+        <div className="mobile-3d-ui">
+          <div className="responsive-hud-panel mobile-hud-compact">
+            <div className="text-center space-y-1">
+              <div className="text-surface-300 font-semibold text-xs flex items-center justify-center gap-2">
+                <Box size={12} />
+                3D Touch Controls
+              </div>
+              <div className="text-surface-400 text-xs space-y-1">
+                <div>• Touch & drag: Orbit camera</div>
+                <div>• Pinch: Zoom in/out</div>
+                <div>• Tap object: Select</div>
+                {selectedObject && (
+                  <div className="text-primary-400 mt-2">
+                    Selected: {selectedObject.userData.type || 'Object'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
   )
 }
 

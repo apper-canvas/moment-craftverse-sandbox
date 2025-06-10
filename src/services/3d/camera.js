@@ -96,14 +96,27 @@ class CameraController {
     this.update()
   }
 
-  onTouchStart(event) {
+onTouchStart(event) {
+    event.preventDefault()
+    
     if (event.touches.length === 1) {
       this.mouse.previous.set(event.touches[0].clientX, event.touches[0].clientY)
       this.isOrbiting = true
+    } else if (event.touches.length === 2) {
+      // Handle pinch-to-zoom
+      const touch1 = event.touches[0]
+      const touch2 = event.touches[1]
+      this.lastPinchDistance = Math.sqrt(
+        Math.pow(touch2.clientX - touch1.clientX, 2) + 
+        Math.pow(touch2.clientY - touch1.clientY, 2)
+      )
+      this.isZooming = true
     }
   }
 
-  onTouchMove(event) {
+onTouchMove(event) {
+    event.preventDefault()
+    
     if (event.touches.length === 1 && this.isOrbiting) {
       this.mouse.current.set(event.touches[0].clientX, event.touches[0].clientY)
       this.mouse.delta.subVectors(this.mouse.current, this.mouse.previous)
@@ -111,11 +124,26 @@ class CameraController {
       this.rotate(this.mouse.delta.x * 0.01, this.mouse.delta.y * 0.01)
       this.mouse.previous.copy(this.mouse.current)
       this.update()
+    } else if (event.touches.length === 2 && this.isZooming) {
+      // Handle pinch-to-zoom
+      const touch1 = event.touches[0]
+      const touch2 = event.touches[1]
+      const currentDistance = Math.sqrt(
+        Math.pow(touch2.clientX - touch1.clientX, 2) + 
+        Math.pow(touch2.clientY - touch1.clientY, 2)
+      )
+      
+      const deltaDistance = currentDistance - this.lastPinchDistance
+      this.zoom(-deltaDistance * 0.01)
+      this.lastPinchDistance = currentDistance
+      this.update()
     }
   }
 
-  onTouchEnd(event) {
+onTouchEnd(event) {
     this.isOrbiting = false
+    this.isZooming = false
+    this.lastPinchDistance = 0
   }
 
   onKeyDown(event) {

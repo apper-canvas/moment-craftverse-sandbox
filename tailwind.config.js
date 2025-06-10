@@ -4,9 +4,9 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  theme: {
+theme: {
     extend: {
-colors: {
+      colors: {
         primary: {
           50: '#eef2ff',
           100: '#e0e7ff',
@@ -59,16 +59,40 @@ colors: {
         'neu-light': '5px 5px 15px #d1d9e6, -5px -5px 15px #ffffff',
         'neu-dark': '5px 5px 15px rgba(0, 0, 0, 0.3), -5px -5px 15px rgba(255, 255, 255, 0.05)',
         'game': '0 0 20px rgba(79, 70, 229, 0.3)'
-      },
+},
       borderRadius: {
         'xl': '0.75rem',
         '2xl': '1rem'
+      },
+      // 3D-specific responsive utilities
+      perspective: {
+        'none': 'none',
+        '500': '500px',
+        '1000': '1000px',
+        '1500': '1500px',
+        '2000': '2000px'
+      },
+      zIndex: {
+        '60': '60',
+        '70': '70',
+        '80': '80',
+        '90': '90',
+        '100': '100'
+      },
+      // Enhanced responsive spacing for 3D UI
+      spacing: {
+        '18': '4.5rem',
+        '22': '5.5rem',
+        '26': '6.5rem',
+        '30': '7.5rem'
       },
       animation: {
         'block-place': 'blockPlace 0.3s ease-out',
         'block-break': 'blockBreak 0.4s ease-in',
         'float': 'float 2s ease-in-out infinite',
-        'pulse-glow': 'pulseGlow 2s ease-in-out infinite'
+'object-select': 'objectSelect 0.2s ease-out',
+        'ui-slide-in': 'uiSlideIn 0.3s ease-out',
+        'data-overlay-fade': 'dataOverlayFade 0.2s ease-in-out'
       },
       keyframes: {
         blockPlace: {
@@ -88,10 +112,23 @@ colors: {
         pulseGlow: {
           '0%, 100%': { boxShadow: '0 0 10px rgba(79, 70, 229, 0.3)' },
           '50%': { boxShadow: '0 0 20px rgba(79, 70, 229, 0.6)' }
+        },
+        objectSelect: {
+          '0%': { transform: 'scale(1)', boxShadow: '0 0 0 rgba(79, 70, 229, 0)' },
+          '50%': { transform: 'scale(1.05)', boxShadow: '0 0 20px rgba(79, 70, 229, 0.8)' },
+          '100%': { transform: 'scale(1)', boxShadow: '0 0 10px rgba(79, 70, 229, 0.4)' }
+        },
+        uiSlideIn: {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' }
+        },
+        dataOverlayFade: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' }
         }
       }
     }
   },
   plugins: [],
-  darkMode: 'class',
+  darkMode: 'class'
 }

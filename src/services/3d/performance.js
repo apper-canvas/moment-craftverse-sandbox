@@ -47,12 +47,12 @@ class PerformanceMonitor {
     this.frameCount++
 
     // Update FPS every second
-    if (currentTime - this.lastTime >= 1000) {
+if (currentTime - this.lastTime >= 1000) {
       this.fps = this.frameCount
       this.metrics.fps = this.fps
       this.metrics.frameTime = 1000 / this.fps
 
-      // Reset counters
+      // Reset for next measurement
       this.frameCount = 0
       this.lastTime = currentTime
 
@@ -66,6 +66,39 @@ class PerformanceMonitor {
 
       // Notify callbacks
       this.notifyCallbacks()
+    }
+  }
+
+  addCallback(callback) {
+    this.callbacks.push(callback)
+  }
+  
+  // Enhanced performance monitoring for 3D object selection
+  updateSelectionMetrics(selectedObjects = []) {
+    this.metrics.selectedObjects = selectedObjects.length
+    this.metrics.memoryUsage = this.getMemoryUsage()
+  }
+  
+  getMemoryUsage() {
+    if (performance.memory) {
+      return {
+        used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
+        total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024)
+      }
+    }
+    return { used: 0, total: 0 }
+  }
+  
+  // Responsive performance adaptation
+  adaptToScreenSize(width, height) {
+    const pixelCount = width * height
+    const isLowEnd = pixelCount > 1920 * 1080 || this.metrics.fps < 30
+    
+    return {
+      recommendLowQuality: isLowEnd,
+      maxShadowMapSize: isLowEnd ? 1024 : 2048,
+      antialiasingEnabled: !isLowEnd,
+      particleCount: isLowEnd ? 50 : 200
     }
   }
 

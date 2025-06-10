@@ -144,11 +144,119 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-
 /* Disable text selection for game UI */
 .game-ui {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
+
+/* 3D-specific utilities */
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .perspective-1500 {
+    perspective: 1500px;
+  }
+  
+  .transform-style-preserve-3d {
+    transform-style: preserve-3d;
+  }
+  
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  
+  /* 3D object selection states */
+  .object-selected {
+    @apply ring-4 ring-primary-400 ring-opacity-75 shadow-lg;
+    animation: objectSelect 0.2s ease-out;
+  }
+  
+  .object-hovered {
+    @apply ring-2 ring-primary-300 ring-opacity-50;
+    transition: all 0.15s ease-in-out;
+  }
+  
+  /* Data overlay styles */
+  .data-overlay {
+    @apply absolute z-80 bg-surface-900 bg-opacity-90 text-white p-2 rounded-lg text-xs;
+    @apply border border-surface-600 backdrop-blur-sm;
+    animation: dataOverlayFade 0.2s ease-in-out;
+    pointer-events: none;
+  }
+  
+  /* Responsive 3D layouts */
+  .responsive-3d-container {
+    @apply w-full h-full relative;
+  }
+  
+  @media (max-width: 768px) {
+    .responsive-3d-container {
+      @apply overflow-hidden;
+    }
+    
+    .mobile-3d-ui {
+      @apply absolute bottom-4 left-4 right-4 z-60;
+    }
+    
+    .mobile-hud-compact {
+      @apply text-xs p-2;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .mobile-3d-ui {
+      @apply bottom-2 left-2 right-2;
+    }
+    
+    .mobile-hud-compact {
+      @apply text-xs p-1;
+    }
+  }
+  
+  /* Enhanced responsive HUD panels */
+  .responsive-hud-panel {
+    @apply hud-panel;
+  }
+  
+  @media (max-width: 1024px) {
+    .responsive-hud-panel {
+      @apply p-3;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .responsive-hud-panel {
+      @apply p-2 text-sm;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .responsive-hud-panel {
+      @apply p-1 text-xs;
+    }
+  }
+  
+  /* 3D mode specific styles */
+  .mode-3d .canvas-container {
+    @apply cursor-grab active:cursor-grabbing;
+  }
+  
+  .mode-2d .canvas-container {
+    @apply cursor-crosshair;
+  }
+  
+  /* Selection indicator animations */
+  .selection-pulse {
+    animation: pulseGlow 1.5s ease-in-out infinite;
+  }
+  
+  /* UI slide animations for responsive design */
+  .ui-slide-enter {
+    animation: uiSlideIn 0.3s ease-out;
+  }
 }

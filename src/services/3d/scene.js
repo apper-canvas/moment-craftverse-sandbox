@@ -146,9 +146,45 @@ class SceneManager {
     }
   }
 
-  render() {
+render() {
     if (this.isInitialized && this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera)
+    }
+  }
+  
+  // Enhanced object selection support
+  addSelectionBox(object) {
+    if (!object) return null
+    
+    const box = new THREE.BoxHelper(object, 0x4F46E5)
+    box.userData = { isSelectionBox: true, parentObject: object }
+    this.scene.add(box)
+    return box
+  }
+  
+  removeSelectionBox(object) {
+    const selectionBox = this.scene.children.find(child => 
+      child.userData.isSelectionBox && child.userData.parentObject === object
+    )
+    if (selectionBox) {
+      this.scene.remove(selectionBox)
+      selectionBox.dispose()
+    }
+  }
+  
+  highlightObject(object, color = 0x4F46E5, intensity = 0.3) {
+    if (object && object.material) {
+      object.material.emissive = new THREE.Color(color)
+      object.material.emissiveIntensity = intensity
+      object.material.needsUpdate = true
+    }
+  }
+  
+  clearHighlight(object) {
+    if (object && object.material) {
+      object.material.emissive = new THREE.Color(0x000000)
+      object.material.emissiveIntensity = 0
+      object.material.needsUpdate = true
     }
   }
 

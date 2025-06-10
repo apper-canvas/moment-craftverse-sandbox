@@ -101,20 +101,61 @@ class ModelManager {
     mesh.receiveShadow = true
     
     // Add metadata
-    mesh.userData = {
+mesh.userData = {
       type: 'block',
       blockType: type,
       position: { ...position },
       scale: scale,
-      id: `block_${position.x}_${position.y}_${position.z}`
+      id: `block_${position.x}_${position.y}_${position.z}`,
+      selectable: true,
+      dataOverlay: {
+        name: `${type.charAt(0).toUpperCase() + type.slice(1)} Block`,
+        properties: {
+          material: type,
+          hardness: this.getBlockHardness(type),
+          transparent: type === 'water'
+        }
+      }
     }
+    
+    return mesh
+  }
+  
+  getBlockHardness(type) {
+    const hardnessMap = {
+      grass: 0.5,
+      dirt: 0.6,
+      stone: 2.0,
+      wood: 1.5,
+      water: 0.0,
+      sand: 0.4
+    }
+    return hardnessMap[type] || 1.0
+  }
+  
+  // Enhanced model creation with selection support
+  enhanceModelForSelection(mesh, type, additionalData = {}) {
+    if (!mesh) return mesh
+    
+    mesh.userData = {
+      ...mesh.userData,
+      selectable: true,
+      type: type,
+      dataOverlay: {
+        name: additionalData.name || `${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        properties: {
+          ...additionalData.properties,
+          createdAt: new Date().toISOString()
+        }
+      },
+      ...additionalData
+}
     
     return mesh
   }
 
   createTree(position = { x: 0, y: 0, z: 0 }) {
     const group = new THREE.Group()
-    
     // Tree trunk
     const trunkGeometry = this.geometries.get('cylinder')
     const trunkMaterial = this.materials.get('wood')
